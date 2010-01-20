@@ -6,7 +6,7 @@ def ipToString(ip):
     ip = htonl(ip)              # network byte order is big-endian
     return '%d.%d.%d.%d' % (ip & 0xff, (ip >> 8) & 0xff, (ip >> 16) & 0xff, (ip >> 24) & 0xff)
 
-class SFlowV5 (object):
+class SFlow (object):
     def __init__(self):
         self.version = 5
         self.src_addr = 0
@@ -22,7 +22,7 @@ class SFlowV5 (object):
         self.version = version
 
         af = up.unpack_int()
-        print 'readSFlowV5:af = %d' % af
+        print 'readSFlow:af = %d' % af
         if af == 1:                 # IPv4
             # TODO: should this be unpack_uint?
             self.agent_address = up.unpack_int()
@@ -30,7 +30,7 @@ class SFlowV5 (object):
             raise Exception()
 
         self.sub_agent_id = up.unpack_uint()
-        print 'readSFlowV5:sub_agent_id = %d' % self.sub_agent_id
+        print 'readSFlow:sub_agent_id = %d' % self.sub_agent_id
         self.sequence_number = up.unpack_uint()
         self.uptime = up.unpack_uint()
         samples = []
@@ -38,22 +38,22 @@ class SFlowV5 (object):
                                                            # these
                                                            # funcalls is
                                                            # important!
-        print 'readSFlowV5:samples_end = %d' % samples_end
+        print 'readSFlow:samples_end = %d' % samples_end
         while up.get_position() < samples_end - 1:
             sample_type = up.unpack_uint()
-            print 'readSFlowV5:sample_type == %d' % sample_type
+            print 'readSFlow:sample_type == %d' % sample_type
             if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
-                for sample in readFlowSampleV5(up, self):
+                for sample in readFlowSample(up, self):
                     yield sample
             elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
-                sample = readCounterSampleV5(up)
+                sample = readCounterSample(up)
                 samples.append(sample)
 
             
     def __repr__(self):
         return '<sflow5,src=%s:%d,agent=%d,seq=%d,up=%dh, samples=%s>' % (self.src_addr, self.src_port, self.sub_agent_id, self.sequence_number, floor(self.uptime/3600000.0), str(self.samples))
 
-class FlowSampleV5 (object):
+class FlowSample (object):
     def __init__(self, sflow_info):
         self.sflow_info = sflow_info
         self.flow_records = []
@@ -62,7 +62,7 @@ class FlowSampleV5 (object):
         return '<flow-sample, %d flow-recs>' % (len(self.flow_records))
 
 
-class IfCounterRecordV5 (object):
+class IfCounterRecord (object):
     def __init__(self, counter_sample_info):
         self.counter_sample_info = counter_sample_info
         self.if_index = 0
@@ -88,14 +88,14 @@ class IfCounterRecordV5 (object):
     def __repr__(self):
         return '%d' % (self.if_index)
 
-class EthernetCounterRecordV5 (object):
+class EthernetCounterRecord (object):
     def __init__(self):
         pass
 
     def __repr__(self):
         pass
 
-class CounterSampleV5 (object):
+class CounterSample (object):
     def __init__(self):
         self.counter_records = []
 
@@ -103,17 +103,17 @@ class CounterSampleV5 (object):
         return '<counter-sample, %d counter-recs>' % (len(self.counter_records))
 
 
-class FlowRecordV5 (object):
+class FlowRecord (object):
     def __init__(self, sample):
         self.sample = sample
 
     def __repr__(self):
-        return 'FlowRecordV5'
+        return 'FlowRecord'
 
 
-class FlowRecordV5IPv4 (FlowRecordV5):
+class FlowRecordIPv4 (FlowRecord):
     def __init__(self, sample):
-        FlowRecordV5.__init__(self, sample)
+        FlowRecord.__init__(self, sample)
 
         self.length = None
         self.protocol = None
@@ -125,12 +125,12 @@ class FlowRecordV5IPv4 (FlowRecordV5):
         self.tos = None
 
     def __repr__(self):
-        return '<FlowRecordV5IPv4: src=%x:%d, dst=%x:%d' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
+        return '<FlowRecordIPv4: src=%x:%d, dst=%x:%d' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
 
 
-class FlowRecordV5Raw (FlowRecordV5):
+class FlowRecordRaw (FlowRecord):
     def __init__(self, sample):
-        FlowRecordV5.__init__(self, sample)
+        FlowRecord.__init__(self, sample)
 
         self.record.header_protocol = None
         self.frame_length = None
@@ -138,12 +138,12 @@ class FlowRecordV5Raw (FlowRecordV5):
         self.header = None
 
     def __repr__(self):
-        return 'FlowRecordV5Raw'
+        return 'FlowRecordRaw'
 
 
-def readFlowRecordV5(up, sample):
+def readFlowRecord(up, sample):
     data_format = up.unpack_uint()
-    print 'readFlowRecordV5:data_format = %d' % data_format
+    print 'readFlowRecord:data_format = %d' % data_format
     data_end = up.unpack_uint() + up.get_position() # order of
                                                     # funcalls is
                                                     # important
@@ -151,7 +151,7 @@ def readFlowRecordV5(up, sample):
     if data_format == 1:        # raw packet header
         print 'pos=%d, end=%d' % (up.get_position(), data_end - 1)
         while up.get_position() < data_end - 1:
-            record = FlowRecordV5Raw(sample)
+            record = FlowRecordRaw(sample)
 
             record.header_protocol = up.unpack_int()
             record.frame_length = up.unpack_uint()
@@ -167,7 +167,7 @@ def readFlowRecordV5(up, sample):
             eth_type = up.unpack_uint()
     elif data_format == 3:      # sampled IPv4
         while up.get_position() < data_end - 1:
-            record = FlowRecordV5IPv4(sample)
+            record = FlowRecordIPv4(sample)
 
             record.length = up.unpack_uint()
             record.protocol = up.unpack_uint()
@@ -212,8 +212,8 @@ def readFlowRecordV5(up, sample):
     #     print 'Aiiiieeee! %d' % data_format
     #     raise Exception()
 
-def readIfCountersV5(up):
-    if_cnt = IfCounterRecordV5()
+def readIfCounters(up):
+    if_cnt = IfCounterRecord()
     if_cnt.if_index = up.unpack_uint()
     print 'if_cnt.if_index = %d' % if_cnt.if_index
     if_cnt.if_type = up.unpack_uint()
@@ -254,13 +254,13 @@ def readIfCountersV5(up):
     print 'if_cnt.if_promiscuous_mode = %d' % if_cnt.if_promiscuous_mode
     return if_cnt
 
-def readEthernetCountersV5(up):
-    eth_cnt = EthernetCounterRecordV5()
+def readEthernetCounters(up):
+    eth_cnt = EthernetCounterRecord()
     for i in range(13):
         up.unpack_uint()
     return eth_cnt
 
-def readVlanCountersV5(up):
+def readVlanCounters(up):
     vlan_id = up.unpack_uint()
     octets = up.unpack_uhyper()
     ucast_pkts = up.unpack_uint()
@@ -269,7 +269,7 @@ def readVlanCountersV5(up):
     discards = up.unpack_uint()
     print 'vlan_id: %d, octets: %d, ucast: %d, mcast: %d, bcast: %d, discards: %d' % (vlan_id, octets, ucast_pkts, multicast_pkts, broadcast_pkts, discards)
 
-def readProcessorInfoV5(up):
+def readProcessorInfo(up):
     cpu_5s = up.unpack_int()
     cpu_1m = up.unpack_int()
     cpu_5m = up.unpack_int()
@@ -278,7 +278,7 @@ def readProcessorInfoV5(up):
 
     print '<procinfo cpu (5s/1m/5m): %d %d %d  |mem(free/total): %d/%d' % (cpu_5s, cpu_1m, cpu_5m, free_memory, total_memory)
 
-def readCounterRecordV5(up):
+def readCounterRecord(up):
     data_format = up.unpack_uint()
     data_end = up.unpack_uint() + up.get_position() # order of
                                                     # funcalls is
@@ -287,30 +287,30 @@ def readCounterRecordV5(up):
     if data_format == 1:        # enterprise = 0, format = 1 -> struct if_counters
         print 'if_counters'
         while up.get_position() < data_end - 1:
-            items.append(readIfCountersV5(up))
+            items.append(readIfCounters(up))
     elif data_format == 2:      # enterprise = 0, format = 2 -> struct ethernet_counters
         print 'ethernet_counters'
         while up.get_position() < data_end - 1:
-            items.append(readEthernetCountersV5(up))
+            items.append(readEthernetCounters(up))
     elif data_format == 5:      # enterprise = 0, format = 5 -> struct vlan_counters
         print 'vlan_counters'
         while up.get_position() < data_end - 1:
-            items.append(readVlanCountersV5(up))
+            items.append(readVlanCounters(up))
     elif data_format == 1001:   # enterprise = 0, format = 1001 -> struct processor
         print 'processor info'
         while up.get_position() < data_end - 1:
-            items.append(readProcessorInfoV5(up))
+            items.append(readProcessorInfo(up))
     else:
         # We have no idea what we're looking at.  Print a diagnostic
         # message and forward the file pointer to the next
         # record/sample/whatever.
         
-        print 'Unknown data_format (%d) in readCounterRecordV5.' % data_format
+        print 'Unknown data_format (%d) in readCounterRecord.' % data_format
         up.set_position(data_end)
         return None
     return items
 
-def readFlowSampleV5(up, sflow_info):
+def readFlowSample(up, sflow_info):
     sequence_number = up.unpack_uint()
     source_id = up.unpack_uint()
     sampling_rate = up.unpack_uint()
@@ -321,39 +321,39 @@ def readFlowSampleV5(up, sflow_info):
     flow_recs_end = up.unpack_uint() + up.get_position() # order of
                                                          # funcalls is
                                                          # important
-    sample = FlowSampleV5(sflow_info)
+    sample = FlowSample(sflow_info)
     print 'pos=%d, end=%d' %(up.get_position(), flow_recs_end)
     while up.get_position() < flow_recs_end - 1:
-        for record in readFlowRecordV5(up, sample):
+        for record in readFlowRecord(up, sample):
             yield record
 
 
-def readCounterSampleV5(up):
+def readCounterSample(up):
     sequence_number = up.unpack_uint()
     source_id = up.unpack_uint()
     recs_end = up.unpack_uint() + up.get_position() # the order of
                                                     # these funcalls
                                                     # is important!
-    sample = CounterSampleV5()
+    sample = CounterSample()
     while up.get_position() < recs_end - 1:
-        rec = readCounterRecordV5(up)
+        rec = readCounterRecord(up)
         sample.counter_records.append(rec)
     return sample
 
-def readSFlowV5(addr, up):
+def readSFlow(addr, up):
     version = up.unpack_int()
     assert(version == 5)
     af = up.unpack_int()
-    print 'readSFlowV5:af = %d' % af
+    print 'readSFlow:af = %d' % af
     if af == 1:                 # IPv4
         agent_address = up.unpack_int()
     else:
         raise Exception()
     sub_agent_id = up.unpack_uint()
-    print 'readSFlowV5:sub_agent_id = %d' % sub_agent_id
+    print 'readSFlow:sub_agent_id = %d' % sub_agent_id
     sequence_number = up.unpack_uint()
     uptime = up.unpack_uint()
-    sf = SFlowV5()
+    sf = SFlow()
     sf.version = 5
     sf.src_addr = addr[0]
     sf.src_port = addr[1]
@@ -365,15 +365,15 @@ def readSFlowV5(addr, up):
                                                        # these
                                                        # funcalls is
                                                        # important!
-    print 'readSFlowV5:samples_end = %d' % samples_end
+    print 'readSFlow:samples_end = %d' % samples_end
     while up.get_position() < samples_end - 1:
         sample_type = up.unpack_uint()
-        print 'readSFlowV5:sample_type == %d' % sample_type
+        print 'readSFlow:sample_type == %d' % sample_type
         if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
-            sample = readFlowSampleV5(up, sf)
+            sample = readFlowSample(up, sf)
             sf.samples.append(sample)
         elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
-            sample = readCounterSampleV5(up)
+            sample = readCounterSample(up)
             sf.samples.append(sample)
     return sf
 
@@ -383,7 +383,7 @@ def readSFlow(addr, data):
     up.set_position(0)
     print 'readSFlow:version = %d' % version
     if version == 5:
-        sf = SFlowV5()
+        sf = SFlow()
         return sf.read(up)
     else:
         raise Exception()

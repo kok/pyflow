@@ -22,7 +22,7 @@ class SFlow (object):
         self.version = version
 
         af = up.unpack_int()
-        print 'readSFlow:af = %d' % af
+        print('readSFlow:af = %d' % af)
         if af == 1:                 # IPv4
             # TODO: should this be unpack_uint?
             self.agent_address = up.unpack_int()
@@ -30,7 +30,7 @@ class SFlow (object):
             raise Exception()
 
         self.sub_agent_id = up.unpack_uint()
-        print 'readSFlow:sub_agent_id = %d' % self.sub_agent_id
+        print('readSFlow:sub_agent_id = %d' % self.sub_agent_id)
         self.sequence_number = up.unpack_uint()
         self.uptime = up.unpack_uint()
         samples = []
@@ -38,10 +38,10 @@ class SFlow (object):
                                                            # these
                                                            # funcalls is
                                                            # important!
-        print 'readSFlow:samples_end = %d' % samples_end
+        print('readSFlow:samples_end = %d' % samples_end)
         while up.get_position() < samples_end - 1:
             sample_type = up.unpack_uint()
-            print 'readSFlow:sample_type == %d' % sample_type
+            print('readSFlow:sample_type == %d' % sample_type)
             if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
                 for sample in readFlowSample(up, self):
                     yield sample
@@ -143,13 +143,13 @@ class FlowRecordRaw (FlowRecord):
 
 def readFlowRecord(up, sample):
     data_format = up.unpack_uint()
-    print 'readFlowRecord:data_format = %d' % data_format
+    print('readFlowRecord:data_format = %d' % data_format)
     data_end = up.unpack_uint() + up.get_position() # order of
                                                     # funcalls is
                                                     # important
 
     if data_format == 1:        # raw packet header
-        print 'pos=%d, end=%d' % (up.get_position(), data_end - 1)
+        print('pos=%d, end=%d' % (up.get_position(), data_end - 1))
         while up.get_position() < data_end - 1:
             record = FlowRecordRaw(sample)
 
@@ -180,7 +180,7 @@ def readFlowRecord(up, sample):
             
             yield record
     else:
-        print 'Unknown data_format (%d)' % data_format
+        print('Unknown data_format (%d)' % data_format)
         up.set_position(data_end)
     # elif data_format == 4:      # sampled IPv6
     #     raise Exception()
@@ -209,49 +209,49 @@ def readFlowRecord(up, sample):
     # elif data_format == 1012:   # extended VLAN tunnel
     #     raise Exception()
     # else:
-    #     print 'Aiiiieeee! %d' % data_format
+    #     print('Aiiiieeee! %d' % data_format)
     #     raise Exception()
 
 def readIfCounters(up):
     if_cnt = IfCounterRecord()
     if_cnt.if_index = up.unpack_uint()
-    print 'if_cnt.if_index = %d' % if_cnt.if_index
+    print('if_cnt.if_index = %d' % if_cnt.if_index)
     if_cnt.if_type = up.unpack_uint()
-    print 'if_cnt.if_type = %d' % if_cnt.if_type
+    print('if_cnt.if_type = %d' % if_cnt.if_type)
     if_cnt.if_speed = up.unpack_uhyper()
-    print 'if_cnt.if_speed = %d' % if_cnt.if_speed
+    print('if_cnt.if_speed = %d' % if_cnt.if_speed)
     if_cnt.if_direction = up.unpack_uint()
-    print 'if_cnt.if_direction = %d' % if_cnt.if_direction
+    print('if_cnt.if_direction = %d' % if_cnt.if_direction)
     if_cnt.if_status = up.unpack_uint()
-    print 'if_cnt.if_status = %d' % if_cnt.if_status
+    print('if_cnt.if_status = %d' % if_cnt.if_status)
     if_cnt.if_in_octets = up.unpack_uhyper()
-    print 'if_cnt.if_in_octets = %d' % if_cnt.if_in_octets
+    print('if_cnt.if_in_octets = %d' % if_cnt.if_in_octets)
     if_cnt.if_in_ucast_pkts = up.unpack_uint()
-    print 'if_cnt.if_in_ucast_pkts = %d' % if_cnt.if_in_ucast_pkts
+    print('if_cnt.if_in_ucast_pkts = %d' % if_cnt.if_in_ucast_pkts)
     if_cnt.if_in_multicast_pkts = up.unpack_uint()
-    print 'if_cnt.if_in_multicast_pkts = %d' % if_cnt.if_in_multicast_pkts
+    print('if_cnt.if_in_multicast_pkts = %d' % if_cnt.if_in_multicast_pkts)
     if_cnt.if_in_broadcast_pkts = up.unpack_uint()
-    print 'if_cnt.if_in_broadcast_pkts = %d' % if_cnt.if_in_broadcast_pkts
+    print('if_cnt.if_in_broadcast_pkts = %d' % if_cnt.if_in_broadcast_pkts)
     if_cnt.if_in_discards = up.unpack_uint()
-    print 'if_cnt.if_in_discards = %d' % if_cnt.if_in_discards
+    print('if_cnt.if_in_discards = %d' % if_cnt.if_in_discards)
     if_cnt.if_in_errors = up.unpack_uint()
-    print 'if_cnt.if_in_errors = %d' % if_cnt.if_in_errors
+    print('if_cnt.if_in_errors = %d' % if_cnt.if_in_errors)
     if_cnt.if_in_unknown_protos = up.unpack_uint()
-    print 'if_cnt.if_in_unknown_protos = %d' % if_cnt.if_in_unknown_protos
+    print('if_cnt.if_in_unknown_protos = %d' % if_cnt.if_in_unknown_protos)
     if_cnt.if_out_octets = up.unpack_uhyper()
-    print 'if_cnt.if_out_octets = %d' % if_cnt.if_out_octets
+    print('if_cnt.if_out_octets = %d' % if_cnt.if_out_octets)
     if_cnt.if_out_ucast_pkts = up.unpack_uint()
-    print 'if_cnt.if_out_ucast_pkts = %d' % if_cnt.if_out_ucast_pkts
+    print('if_cnt.if_out_ucast_pkts = %d' % if_cnt.if_out_ucast_pkts)
     if_cnt.if_out_multicast_pkts = up.unpack_uint()
-    print 'if_cnt.if_out_multicast_pkts = %d' % if_cnt.if_out_multicast_pkts
+    print('if_cnt.if_out_multicast_pkts = %d' % if_cnt.if_out_multicast_pkts)
     if_cnt.if_out_broadcast_pkts = up.unpack_uint()
-    print 'if_cnt.if_out_broadcast_pkts = %d' % if_cnt.if_out_broadcast_pkts
+    print('if_cnt.if_out_broadcast_pkts = %d' % if_cnt.if_out_broadcast_pkts)
     if_cnt.if_out_discards = up.unpack_uint()
-    print 'if_cnt.if_out_discards = %d' % if_cnt.if_out_discards
+    print('if_cnt.if_out_discards = %d' % if_cnt.if_out_discards)
     if_cnt.if_out_errors = up.unpack_uint()
-    print 'if_cnt.if_out_errors = %d' % if_cnt.if_out_errors
+    print('if_cnt.if_out_errors = %d' % if_cnt.if_out_errors)
     if_cnt.if_promiscuous_mode = up.unpack_uint()
-    print 'if_cnt.if_promiscuous_mode = %d' % if_cnt.if_promiscuous_mode
+    print('if_cnt.if_promiscuous_mode = %d' % if_cnt.if_promiscuous_mode)
     return if_cnt
 
 def readEthernetCounters(up):
@@ -267,7 +267,7 @@ def readVlanCounters(up):
     multicast_pkts = up.unpack_uint()
     broadcast_pkts = up.unpack_uint()
     discards = up.unpack_uint()
-    print 'vlan_id: %d, octets: %d, ucast: %d, mcast: %d, bcast: %d, discards: %d' % (vlan_id, octets, ucast_pkts, multicast_pkts, broadcast_pkts, discards)
+    print('vlan_id: %d, octets: %d, ucast: %d, mcast: %d, bcast: %d, discards: %d' % (vlan_id, octets, ucast_pkts, multicast_pkts, broadcast_pkts, discards))
 
 def readProcessorInfo(up):
     cpu_5s = up.unpack_int()
@@ -276,7 +276,7 @@ def readProcessorInfo(up):
     total_memory = up.unpack_uhyper()
     free_memory = up.unpack_uhyper()
 
-    print '<procinfo cpu (5s/1m/5m): %d %d %d  |mem(free/total): %d/%d' % (cpu_5s, cpu_1m, cpu_5m, free_memory, total_memory)
+    print('<procinfo cpu (5s/1m/5m): %d %d %d  |mem(free/total): %d/%d' % (cpu_5s, cpu_1m, cpu_5m, free_memory, total_memory))
 
 def readCounterRecord(up):
     data_format = up.unpack_uint()
@@ -285,27 +285,27 @@ def readCounterRecord(up):
                                                     # important
     items = []
     if data_format == 1:        # enterprise = 0, format = 1 -> struct if_counters
-        print 'if_counters'
+        print('if_counters')
         while up.get_position() < data_end - 1:
             items.append(readIfCounters(up))
     elif data_format == 2:      # enterprise = 0, format = 2 -> struct ethernet_counters
-        print 'ethernet_counters'
+        print('ethernet_counters')
         while up.get_position() < data_end - 1:
             items.append(readEthernetCounters(up))
     elif data_format == 5:      # enterprise = 0, format = 5 -> struct vlan_counters
-        print 'vlan_counters'
+        print('vlan_counters')
         while up.get_position() < data_end - 1:
             items.append(readVlanCounters(up))
     elif data_format == 1001:   # enterprise = 0, format = 1001 -> struct processor
-        print 'processor info'
+        print('processor info')
         while up.get_position() < data_end - 1:
             items.append(readProcessorInfo(up))
     else:
-        # We have no idea what we're looking at.  Print a diagnostic
+        # We have no idea what we're looking at.  print(a diagnostic)
         # message and forward the file pointer to the next
         # record/sample/whatever.
         
-        print 'Unknown data_format (%d) in readCounterRecord.' % data_format
+        print('Unknown data_format (%d) in readCounterRecord.' % data_format)
         up.set_position(data_end)
         return None
     return items
@@ -322,7 +322,7 @@ def readFlowSample(up, sflow_info):
                                                          # funcalls is
                                                          # important
     sample = FlowSample(sflow_info)
-    print 'pos=%d, end=%d' %(up.get_position(), flow_recs_end)
+    print('pos=%d, end=%d' %(up.get_position(), flow_recs_end))
     while up.get_position() < flow_recs_end - 1:
         for record in readFlowRecord(up, sample):
             yield record
@@ -344,13 +344,13 @@ def readSFlow(addr, up):
     version = up.unpack_int()
     assert(version == 5)
     af = up.unpack_int()
-    print 'readSFlow:af = %d' % af
+    print('readSFlow:af = %d' % af)
     if af == 1:                 # IPv4
         agent_address = up.unpack_int()
     else:
         raise Exception()
     sub_agent_id = up.unpack_uint()
-    print 'readSFlow:sub_agent_id = %d' % sub_agent_id
+    print('readSFlow:sub_agent_id = %d' % sub_agent_id)
     sequence_number = up.unpack_uint()
     uptime = up.unpack_uint()
     sf = SFlow()
@@ -365,10 +365,10 @@ def readSFlow(addr, up):
                                                        # these
                                                        # funcalls is
                                                        # important!
-    print 'readSFlow:samples_end = %d' % samples_end
+    print('readSFlow:samples_end = %d' % samples_end)
     while up.get_position() < samples_end - 1:
         sample_type = up.unpack_uint()
-        print 'readSFlow:sample_type == %d' % sample_type
+        print('readSFlow:sample_type == %d' % sample_type)
         if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
             sample = readFlowSample(up, sf)
             sf.samples.append(sample)
@@ -381,7 +381,7 @@ def readSFlow(addr, data):
     up = Unpacker(data)
     version = up.unpack_int()
     up.set_position(0)
-    print 'readSFlow:version = %d' % version
+    print('readSFlow:version = %d' % version)
     if version == 5:
         sf = SFlow()
         return sf.read(up)
@@ -405,4 +405,4 @@ if __name__=='__main__':
     while True:
         data, addr = sock.recvfrom(65535)
         for record in readSFlow(addr, data):
-            print record
+            print(record)

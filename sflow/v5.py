@@ -25,33 +25,65 @@ class SFlow (object):
         print('readSFlow:af = %d' % af)
         if af == 1:                 # IPv4
             # TODO: should this be unpack_uint?
-            self.agent_address = up.unpack_int()
+            self.agent_address = up.unpack_uint()
         else:
             raise Exception()
 
         self.sub_agent_id = up.unpack_uint()
         print('readSFlow:sub_agent_id = %d' % self.sub_agent_id)
         self.sequence_number = up.unpack_uint()
+        print('readSFlow:sequence_number = %d' % self.sequence_number)
         self.uptime = up.unpack_uint()
-        samples = []
-        samples_end = up.unpack_uint() + up.get_position() # the order of
-                                                           # these
-                                                           # funcalls is
-                                                           # important!
-        print('readSFlow:samples_end = %d' % samples_end)
-        while up.get_position() < samples_end - 1:
-            sample_type = up.unpack_uint()
-            print('readSFlow:sample_type == %d' % sample_type)
-            if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
-                for sample in readFlowSample(up, self):
-                    yield sample
-            elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
-                sample = readCounterSample(up)
-                samples.append(sample)
+        # samples = []
+        # samples_end = up.unpack_uint() + up.get_position() # the order of
+        #                                                    # these
+        #                                                    # funcalls is
+        #                                                    # important!
+        sample_count = up.unpack_uint()
+        print('readSFlow:sample_count = %d' % sample_count)
+        for i in range(sample_count):
+            for sample in readSample(up, self):
+                yield sample
 
-            
+
     def __repr__(self):
         return '<sflow5,src=%s:%d,agent=%d,seq=%d,up=%dh, samples=%s>' % (self.src_addr, self.src_port, self.sub_agent_id, self.sequence_number, floor(self.uptime/3600000.0), str(self.samples))
+
+
+def readSample(up, sample_dgram):
+    sample_type = up.unpack_uint()
+    enterprise = sample_type >> 12
+    format = sample_type & 0xfff
+    print('readSFlow:sample_type == %d (%d, %d)' % (sample_type, enterprise, format))
+
+    if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
+        yield readFlowSample(up, sample_dgram):
+    elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
+        sample = readCounterSample(up)
+        samples.append(sample)
+    else:
+        raise Exception()
+
+
+def readFlowSample(up, sample_dgram):
+    flow_recs_end = up.unpack_uint() + up.get_position() # order of
+                                                         # funcalls is
+                                                         # important
+    
+    sequence_number = up.unpack_uint()
+    source_id = up.unpack_uint()
+    sampling_rate = up.unpack_uint()
+    sample_pool = up.unpack_uint()
+    drops = up.unpack_uint()
+    input_if = up.unpack_uint()
+    output_if = up.unpack_uint()
+    sample = FlowSample(sflow_info)
+    print('pos=%d, end=%d' %(up.get_position(), flow_recs_end))
+    while up.get_position() < flow_recs_end - 1:
+        for record in readFlowRecord(up, sample):
+            yield record
+    
+
 
 class FlowSample (object):
     def __init__(self, sflow_info):
@@ -310,22 +342,6 @@ def readCounterRecord(up):
         return None
     return items
 
-def readFlowSample(up, sflow_info):
-    sequence_number = up.unpack_uint()
-    source_id = up.unpack_uint()
-    sampling_rate = up.unpack_uint()
-    sample_pool = up.unpack_uint()
-    drops = up.unpack_uint()
-    input_if = up.unpack_uint()
-    output_if = up.unpack_uint()
-    flow_recs_end = up.unpack_uint() + up.get_position() # order of
-                                                         # funcalls is
-                                                         # important
-    sample = FlowSample(sflow_info)
-    print('pos=%d, end=%d' %(up.get_position(), flow_recs_end))
-    while up.get_position() < flow_recs_end - 1:
-        for record in readFlowRecord(up, sample):
-            yield record
 
 
 def readCounterSample(up):
@@ -340,48 +356,12 @@ def readCounterSample(up):
         sample.counter_records.append(rec)
     return sample
 
-def readSFlow(addr, up):
-    version = up.unpack_int()
-    assert(version == 5)
-    af = up.unpack_int()
-    print('readSFlow:af = %d' % af)
-    if af == 1:                 # IPv4
-        agent_address = up.unpack_int()
-    else:
-        raise Exception()
-    sub_agent_id = up.unpack_uint()
-    print('readSFlow:sub_agent_id = %d' % sub_agent_id)
-    sequence_number = up.unpack_uint()
-    uptime = up.unpack_uint()
-    sf = SFlow()
-    sf.version = 5
-    sf.src_addr = addr[0]
-    sf.src_port = addr[1]
-    sf.sub_agent_id = sub_agent_id
-    sf.sequence_number = sequence_number
-    sf.uptime = uptime
-    sf.samples = []
-    samples_end = up.unpack_uint() + up.get_position() # the order of
-                                                       # these
-                                                       # funcalls is
-                                                       # important!
-    print('readSFlow:samples_end = %d' % samples_end)
-    while up.get_position() < samples_end - 1:
-        sample_type = up.unpack_uint()
-        print('readSFlow:sample_type == %d' % sample_type)
-        if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
-            sample = readFlowSample(up, sf)
-            sf.samples.append(sample)
-        elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
-            sample = readCounterSample(up)
-            sf.samples.append(sample)
-    return sf
 
 def readSFlow(addr, data):
     up = Unpacker(data)
     version = up.unpack_int()
     up.set_position(0)
-    print('readSFlow:version = %d' % version)
+    print('\n\nreadSFlow:version = %d' % version)
     if version == 5:
         sf = SFlow()
         return sf.read(up)

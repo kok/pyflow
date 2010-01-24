@@ -57,7 +57,7 @@ def readSample(up, sample_dgram):
     print('readSFlow:sample_type == %d (%d, %d)' % (sample_type, enterprise, format))
 
     if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
-        yield readFlowSample(up, sample_dgram):
+        yield readFlowSample(up, sample_dgram)
     elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
         sample = readCounterSample(up)
         samples.append(sample)

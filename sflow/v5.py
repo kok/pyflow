@@ -326,6 +326,12 @@ def read_counter_record(up, sample_datagram):
         read_if_counters(up_counter_data, sample_datagram)
     elif format == 2:
         read_ethernet_counters(up_flow_data, sample_datagram)  
+    elif format == 3:
+        read_tokenring_counters(up_flow_data, sample_datagram)  
+    elif format == 4:
+        read_vg_counters(up_flow_data, sample_datagram)  
+    elif format == 5:
+        read_vlan_counters(up_flow_data, sample_datagram)  
     else:
         print('read_flow_record:Unknown data_format (%d)' % format)
 
@@ -450,9 +456,142 @@ def read_ethernet_counters(up, sample_datagram):
     
 
 
+def read_tokenring_counters(up, sample_datagram):
+
+    # Unpack tokenring_counters structure
+    #     unsigned int dot5StatsLineErrors;
+    #     unsigned int dot5StatsBurstErrors;
+    #     unsigned int dot5StatsACErrors;
+    #     unsigned int dot5StatsAbortTransErrors;
+    #     unsigned int dot5StatsInternalErrors;
+    #     unsigned int dot5StatsLostFrameErrors;
+    #     unsigned int dot5StatsReceiveCongestions;
+    #     unsigned int dot5StatsFrameCopiedErrors;
+    #     unsigned int dot5StatsTokenErrors;
+    #     unsigned int dot5StatsSoftErrors;
+    #     unsigned int dot5StatsHardErrors;
+    #     unsigned int dot5StatsSignalLoss;
+    #     unsigned int dot5StatsTransmitBeacons;
+    #     unsigned int dot5StatsRecoverys;
+    #     unsigned int dot5StatsLobeWires;
+    #     unsigned int dot5StatsRemoves;
+    #     unsigned int dot5StatsSingles;
+    #     unsigned int dot5StatsFreqErrors;
+
+    dot5StatsLineErrors = up.unpack_uint()
+    dot5StatsBurstErrors = up.unpack_uint()
+    dot5StatsACErrors = up.unpack_uint()
+    dot5StatsAbortTransErrors = up.unpack_uint()
+    dot5StatsInternalErrors = up.unpack_uint()
+    dot5StatsLostFrameErrors = up.unpack_uint()
+    dot5StatsReceiveCongestions = up.unpack_uint()
+    dot5StatsFrameCopiedErrors = up.unpack_uint()
+    dot5StatsTokenErrors = up.unpack_uint()
+    dot5StatsSoftErrors = up.unpack_uint()
+    dot5StatsHardErrors = up.unpack_uint()
+    dot5StatsSignalLoss = up.unpack_uint()
+    dot5StatsTransmitBeacons = up.unpack_uint()
+    dot5StatsRecoverys = up.unpack_uint()
+    dot5StatsLobeWires = up.unpack_uint()
+    dot5StatsRemoves = up.unpack_uint()
+    dot5StatsSingles = up.unpack_uint()
+    dot5StatsFreqErrors = up.unpack_uint()
+
+    # Debug output
+    print("read_tokenring_counters:dot5StatsLineErrors = %d" % dot5StatsLineErrors)
+    print("read_tokenring_counters:dot5StatsBurstErrors = %d" % dot5StatsBurstErrors)
+    print("read_tokenring_counters:dot5StatsACErrors = %d" % dot5StatsACErrors)
+    print("read_tokenring_counters:dot5StatsAbortTransErrors = %d" % dot5StatsAbortTransErrors)
+    print("read_tokenring_counters:dot5StatsInternalErrors = %d" % dot5StatsInternalErrors)
+    print("read_tokenring_counters:dot5StatsLostFrameErrors = %d" % dot5StatsLostFrameErrors)
+    print("read_tokenring_counters:dot5StatsReceiveCongestions = %d" % dot5StatsReceiveCongestions)
+    print("read_tokenring_counters:dot5StatsFrameCopiedErrors = %d" % dot5StatsFrameCopiedErrors)
+    print("read_tokenring_counters:dot5StatsTokenErrors = %d" % dot5StatsTokenErrors)
+    print("read_tokenring_counters:dot5StatsSoftErrors = %d" % dot5StatsSoftErrors)
+    print("read_tokenring_counters:dot5StatsHardErrors = %d" % dot5StatsHardErrors)
+    print("read_tokenring_counters:dot5StatsSignalLoss = %d" % dot5StatsSignalLoss)
+    print("read_tokenring_counters:dot5StatsTransmitBeacons = %d" % dot5StatsTransmitBeacons)
+    print("read_tokenring_counters:dot5StatsRecoverys = %d" % dot5StatsRecoverys)
+    print("read_tokenring_counters:dot5StatsLobeWires = %d" % dot5StatsLobeWires)
+    print("read_tokenring_counters:dot5StatsRemoves = %d" % dot5StatsRemoves)
+    print("read_tokenring_counters:dot5StatsSingles = %d" % dot5StatsSingles)
+    print("read_tokenring_counters:dot5StatsFreqErrors = %d" % dot5StatsFreqErrors)
 
 
+def read_vg_counters(up, sample_datagram):
 
+    # Unpack 100 BaseVG interface counters
+    #     unsigned int dot12InHighPriorityFrames;
+    #     unsigned hyper dot12InHighPriorityOctets;
+    #     unsigned int dot12InNormPriorityFrames;
+    #     unsigned hyper dot12InNormPriorityOctets;
+    #     unsigned int dot12InIPMErrors;
+    #     unsigned int dot12InOversizeFrameErrors;
+    #     unsigned int dot12InDataErrors;
+    #     unsigned int dot12InNullAddressedFrames;
+    #     unsigned int dot12OutHighPriorityFrames;
+    #     unsigned hyper dot12OutHighPriorityOctets;
+    #     unsigned int dot12TransitionIntoTrainings;
+    #     unsigned hyper dot12HCInHighPriorityOctets;
+    #     unsigned hyper dot12HCInNormPriorityOctets;
+    #     unsigned hyper dot12HCOutHighPriorityOctets;
+
+    dot12InHighPriorityFrames = up.unpack_uint()
+    dot12InHighPriorityOctets = up.unpack_uhyper()
+    dot12InNormPriorityFrames = up.unpack_uint()
+    dot12InNormPriorityOctets = up.unpack_uhyper()
+    dot12InIPMErrors = up.unpack_uint()
+    dot12InOversizeFrameErrors = up.unpack_uint()
+    dot12InDataErrors = up.unpack_uint()
+    dot12InNullAddressedFrames = up.unpack_uint()
+    dot12OutHighPriorityFrames = up.unpack_uint()
+    dot12OutHighPriorityOctets = up.unpack_uhyper()
+    dot12TransitionIntoTrainings = up.unpack_uint()
+    dot12HCInHighPriorityOctets = up.unpack_uhyper()
+    dot12HCInNormPriorityOctets = up.unpack_uhyper()
+    dot12HCOutHighPriorityOctets = up.unpack_uhyper()
+
+    # Backup output
+    print("read_vg_counters:dot12InHighPriorityFrames = %d" % dot12InHighPriorityFrames)
+    print("read_vg_counters:dot12InHighPriorityOctets = %d" % dot12InHighPriorityOctets)
+    print("read_vg_counters:dot12InNormPriorityFrames = %d" % dot12InNormPriorityFrames)
+    print("read_vg_counters:dot12InNormPriorityOctets = %d" % dot12InNormPriorityOctets)
+    print("read_vg_counters:dot12InIPMErrors = %d" % dot12InIPMErrors)
+    print("read_vg_counters:dot12InOversizeFrameErrors = %d" % dot12InOversizeFrameErrors)
+    print("read_vg_counters:dot12InDataErrors = %d" % dot12InDataErrors)
+    print("read_vg_counters:dot12InNullAddressedFrames = %d" % dot12InNullAddressedFrames)
+    print("read_vg_counters:dot12OutHighPriorityFrames = %d" % dot12OutHighPriorityFrames)
+    print("read_vg_counters:dot12OutHighPriorityOctets = %d" % dot12OutHighPriorityOctets)
+    print("read_vg_counters:dot12TransitionIntoTrainings = %d" % dot12TransitionIntoTrainings)
+    print("read_vg_counters:dot12HCInHighPriorityOctets = %d" % dot12HCInHighPriorityOctets)
+    print("read_vg_counters:dot12HCInNormPriorityOctets = %d" % dot12HCInNormPriorityOctets)
+    print("read_vg_counters:dot12HCOutHighPriorityOctets = %d" % dot12HCOutHighPriorityOctets)
+
+
+def read_vlan_counters(up, sample_datagram):
+
+    # Unpack VLAN counters
+    #     unsigned int vlan_id;
+    #     unsigned hyper octets;
+    #     unsigned int ucastPkts;
+    #     unsigned int multicastPkts;
+    #     unsigned int broadcastPkts;
+    #     unsigned int discards;
+
+    vlan_id = up.unpack_uint()
+    octets = up.unpack_uhyper()
+    ucastPkts = up.unpack_uint()
+    multicastPkts = up.unpack_uint()
+    broadcastPkts = up.unpack_uint()
+    discards = up.unpack_uint()
+
+    # Print backup output
+    print("read_vg_counters:vlan = %d" % vlan)
+    print("read_vg_counters:octets = %d" % octets)
+    print("read_vg_counters:ucastPkts = %d" % ucastPkts)
+    print("read_vg_counters:multicastPkts = %d" % multicastPkts)
+    print("read_vg_counters:broadcastPkts = %d" % broadcastPkts)
+    print("read_vg_counters:discards = %d" % discards)
 
 
 class SFlow (object):

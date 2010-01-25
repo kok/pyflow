@@ -1,13 +1,7 @@
 from xdrlib import Unpacker
-from socket import socket, AF_INET, SOCK_DGRAM, ntohl, htonl
+from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
-
-
-
-def ipToString(ip):
-
-    ip = htonl(ip)              # network byte order is big-endian
-    return '%d.%d.%d.%d' % (ip & 0xff, (ip >> 8) & 0xff, (ip >> 16) & 0xff, (ip >> 24) & 0xff)
+from util import ip_to_string, hexdump_bytes
 
 
 def decode_sflow_data_source(sflow_data_source):
@@ -21,10 +15,6 @@ def decode_sflow_data_source(sflow_data_source):
     value = sflow_data_source & 0xfff
 
     return (source_type, value)
-
-
-
-
 
 
 def read_sflow_stream(addr, data):
@@ -214,9 +204,11 @@ def read_sampled_header(up, sample_datagram):
     print("read_sampled_header:header_protocol = %d" % header_protocol)
     print("read_sampled_header:frame_length = %d" % frame_length)
     print("read_sampled_header:stripped = %d" % stripped)
-    print("read_sampled_header:header",header)
-    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ipToString(header_source_ip)))
-    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ipToString(header_dst_ip)))
+    # print("read_sampled_header:header",header)
+    print('read_sampled_header:header')
+    hexdump_bytes(bytes(header))
+    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ip_to_string(header_source_ip)))
+    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ip_to_string(header_dst_ip)))
 
 
 def read_sampled_ethernet(up, sample_datagram):
@@ -263,8 +255,8 @@ def read_sampled_ipv4(up, sample_datagram):
     # Some debug output
     print("read_sampled_ipv4:length = %d" % length)
     print("read_sampled_ipv4:protocol = %d" % protocol)
-    print("read_sampled_ipv4:src_ip = %d (%s)" % (src_ip, ipToString(src_ip)))
-    print("read_sampled_ipv4:dst_ip = %d (%s)" % (dst_ip, ipToString(dst_ip)))
+    print("read_sampled_ipv4:src_ip = %d (%s)" % (src_ip, ip_to_string(src_ip)))
+    print("read_sampled_ipv4:dst_ip = %d (%s)" % (dst_ip, ip_to_string(dst_ip)))
     print("read_sampled_ipv4:src_port = %d" % src_port)
     print("read_sampled_ipv4:dst_port = %d" % dst_port)
     print("read_sampled_ipv4:tcp_flags = %d" % tcp_flags)

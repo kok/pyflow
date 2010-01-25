@@ -1,3 +1,11 @@
+"""Library for parsing sFlow (v5) datagrams.
+
+sFlow version 5 is described in www.sflow.org/sflow_version_5.txt.
+
+Since the datagram format is specified using XDR the following RFCs
+may be useful: 1014, 1832, 4506."""
+
+
 from xdrlib import Unpacker
 from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
@@ -5,7 +13,8 @@ from util import ip_to_string, hexdump_bytes
 
 
 def decode_sflow_data_source(sflow_data_source):
-
+    """Decodes a sflow_data_source as described in the sFlow v5
+    spec."""
     # source type should be one of
     #   0 = ifIndex
     #   1 = smonVlanDataSource
@@ -36,7 +45,11 @@ def read_sflow_stream(addr, data):
     # Check if whole stream was read
     up.done()
 
+
 def read_sample_datagram(up):
+    """Yield all record (flow and counter records) from the sFlow v5
+    datagram given by up, which is expected to be an xdrlib.Unpacker
+    object."""
 
     sf = SFlow()
 
@@ -47,10 +60,14 @@ def read_sample_datagram(up):
     assert(version == 5)
 
     # Unpack sample_datagram_v5 structure
-    #    address agent_address          IP address of sampling agent, sFlowAgentAddress.
-    #    unsigned int sub_agent_id;     Used to distinguishing between datagram streams
-    #    unsigned int sequence_number;  Incremented with each sample datagram
-    #    unsigned int uptime;           Current time (in milliseconds since device last booted).
+    #    address agent_address          
+    #         IP address of sampling agent, sFlowAgentAddress.
+    #    unsigned int sub_agent_id;
+    #         Used to distinguishing between datagram streams
+    #    unsigned int sequence_number;
+    #         Incremented with each sample datagram
+    #    unsigned int uptime;
+    #         Current time (in milliseconds since device last booted).
     #    sample_record samples<>;       An array of sample records
     af = up.unpack_int()
     if af == 1:                 # IPv4
@@ -81,14 +98,17 @@ def read_sample_datagram(up):
 def read_sample_record(up, sample_datagram):
 
     # Unpack sample_record structure
-    #    data_format sample_type;      Specifies the type of sample data
-    #    opaque sample_data<>;          A structure corresponding to the sample_type
+    #    data_format sample_type;
+    #       Specifies the type of sample data
+    #    opaque sample_data<>;
+    #       A structure corresponding to the sample_type
 
     # Decode sample type
     sample_type = up.unpack_uint()
     enterprise = sample_type >> 12
     format = sample_type & 0xfff
-    print('read_sample_record:sample_type == %d (%d, %d)' % (sample_type, enterprise, format))
+    print('read_sample_record:sample_type == %d (%d, %d)'
+          % (sample_type, enterprise, format))
 
     # Unpack sample data
     sample_data = up.unpack_opaque()
@@ -109,14 +129,17 @@ def read_sample_record(up, sample_datagram):
 
 
 def read_flow_sample(up, sample_datagram):
-    
+ 
     # Unpack flow_sample structure
     #    unsigned int sequence_number;   Incremented with each flow sample
     #    sflow_data_source source_id;    sFlowDataSource
     #    unsigned int sampling_rate;     sFlowPacketSamplingRate
-    #    unsigned int sample_pool;       Total number of packets that could have been sampled
-    #    unsigned int drops;             Number of times that the sFlow agent detected 
-    #                                    that a packet marked to be sampled was dropped
+    #    unsigned int sample_pool;
+    #         Total number of packets that could have been sampled
+    #    unsigned int drops;             
+    #        Number of times that the sFlow agent detected 
+    #        that a packet marked to be sampled was dropped
+    #
     #    interface input;                Interface packet was received on.
     #    interface output;               Interface packet was sent on.
     #    flow_record flow_records<>;     Information about a sampled packet
@@ -134,7 +157,8 @@ def read_flow_sample(up, sample_datagram):
 
     # Some debug output
     print("read_flow_sample:sequence_number = %d" % sequence_number)
-    print("read_flow_sample:source_id = %d (%d, %d)" % (source_id,source_id_index, source_id_value))
+    print("read_flow_sample:source_id = %d (%d, %d)"
+          % (source_id,source_id_index, source_id_value))
     print("read_flow_sample:sampling_rate = %d" % sampling_rate)
     print("read_flow_sample:sample_pool = %d" % sample_pool)
     print("read_flow_sample:drops = %d" % drops)
@@ -151,13 +175,15 @@ def read_flow_record(up, sample_datagram):
 
     # Unpack flow_record structure
     #     data_format flow_format;      The format of sflow_data
-    #     opaque flow_data<>;           Flow data uniquely defined by the flow_format.
+    #     opaque flow_data<>;
+    #         Flow data uniquely defined by the flow_format.
 
     # Unpack data format
     flow_format = up.unpack_uint()
     enterprise = flow_format >> 12
     format = flow_format & 0xfff
-    print('read_flow_record:flow_format == %d (%d, %d)' % (flow_format, enterprise, format))
+    print('read_flow_record:flow_format == %d (%d, %d)'
+          % (flow_format, enterprise, format))
 
     # Uppack whole data block
     flow_data = up.unpack_opaque()
@@ -182,8 +208,10 @@ def read_sampled_header(up, sample_datagram):
 
     # Unpack sampled raw header
     #     header_protocol protocol;      Format of sampled header
-    #     unsigned int frame_length;     Original length of packet before sampling.
-    #     unsigned int stripped;         The number of octets removed from the packet before 
+    #     unsigned int frame_length;
+    #         Original length of packet before sampling.
+    #     unsigned int stripped;
+    #         The number of octets removed from the packet before 
     #                                    extracting the header<> octets.
     #     opaque header<>;               Header bytes
 
@@ -207,14 +235,17 @@ def read_sampled_header(up, sample_datagram):
     # print("read_sampled_header:header",header)
     print('read_sampled_header:header')
     hexdump_bytes(bytes(header))
-    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ip_to_string(header_source_ip)))
-    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ip_to_string(header_dst_ip)))
+    print("read_sampled_header:header_source_ip = %d (%s)"
+          % (header_source_ip, ip_to_string(header_source_ip)))
+    print("read_sampled_header:header_dst_ip = %d (%s)"
+          % (header_dst_ip, ip_to_string(header_dst_ip)))
 
 
 def read_sampled_ethernet(up, sample_datagram):
 
     # Unpack Ethernet Frame Data
-    #     unsigned int length;   The length of the MAC packet received on the network
+    #     unsigned int length;
+    #         The length of the MAC packet received on the network
     #     mac src_mac;           Source MAC address
     #     mac dst_mac;           Destination MAC address
     #     unsigned int type;     Ethernet packet type
@@ -233,8 +264,10 @@ def read_sampled_ethernet(up, sample_datagram):
 def read_sampled_ipv4(up, sample_datagram):
 
     # Unpack Packet IP version 4 data
-    #     unsigned int length;     The length of the IP packet excluding lower layer encapsulations
-    #     unsigned int protocol;   IP Protocol type (for example, TCP = 6, UDP = 17)
+    #     unsigned int length;
+    #         The length of the IP packet excluding lower layer encapsulations
+    #     unsigned int protocol;
+    #         IP Protocol type (for example, TCP = 6, UDP = 17)
     #     ip_v4 src_ip;            Source IP Address
     #     ip_v4 dst_ip;            Destination IP Address
     #     unsigned int src_port;   TCP/UDP source port number or equivalent
@@ -264,7 +297,7 @@ def read_sampled_ipv4(up, sample_datagram):
     
 
 class SFlow (object):
-
+    """Describes the header data of an sFlow v5 datagram."""
     def __init__(self):
 
         self.version = 5
@@ -276,14 +309,17 @@ class SFlow (object):
         self.samples = []
 
     def __repr__(self):
-        return '<sflow5,src=%s:%d,agent=%d,seq=%d,up=%dh, samples=%s>' % (self.src_addr, 
-                                                                          self.src_port, 
-                                                                          self.sub_agent_id, 
-                                                                          self.sequence_number, 
-                                                                          floor(self.uptime/3600000.0), 
-                                                                          str(self.samples))
+        return ('<sflow5,src=%s:%d,agent=%d,seq=%d,up=%dh, samples=%s>'
+                % (self.src_addr, 
+                   self.src_port, 
+                   self.sub_agent_id, 
+                   self.sequence_number, 
+                   floor(self.uptime/3600000.0), 
+                   str(self.samples)))
+
 
 class FlowSample (object):
+    """Describes an sFlow v5 flow sample."""
     def __init__(self, sflow_info):
         self.sflow_info = sflow_info
         self.flow_records = []
@@ -293,6 +329,8 @@ class FlowSample (object):
 
 
 class IfCounterRecord (object):
+    """sFlow v5 interface counters."""
+
     def __init__(self, counter_sample_info):
         self.counter_sample_info = counter_sample_info
         self.if_index = 0
@@ -318,14 +356,19 @@ class IfCounterRecord (object):
     def __repr__(self):
         return '%d' % (self.if_index)
 
+
 class EthernetCounterRecord (object):
+    """sFlow v5 ethernet counters."""
+
     def __init__(self):
         pass
 
     def __repr__(self):
         pass
 
+
 class CounterSample (object):
+    """Describes an sFlow v5 counter sample."""
     def __init__(self):
         self.counter_records = []
 
@@ -334,6 +377,8 @@ class CounterSample (object):
 
 
 class FlowRecord (object):
+    """Describes an sFlow v5 flow record."""
+
     def __init__(self, sample):
         self.sample = sample
 
@@ -342,6 +387,8 @@ class FlowRecord (object):
 
 
 class FlowRecordIPv4 (FlowRecord):
+    """Describes an sFlow v5 flow record for IPv4."""
+
     def __init__(self, sample):
         FlowRecord.__init__(self, sample)
 
@@ -355,10 +402,13 @@ class FlowRecordIPv4 (FlowRecord):
         self.tos = None
 
     def __repr__(self):
-        return '<FlowRecordIPv4: src=%x:%d, dst=%x:%d' % (self.src_ip, self.src_port, self.dst_ip, self.dst_port)
+        return ('<FlowRecordIPv4: src=%x:%d, dst=%x:%d'
+                % (self.src_ip, self.src_port, self.dst_ip, self.dst_port))
 
 
 class FlowRecordRaw (FlowRecord):
+    """Describes an sFlow v5 flow record for raw packets."""
+
     def __init__(self, sample):
         FlowRecord.__init__(self, sample)
 
@@ -442,6 +492,7 @@ def readFlowRecord(up, sample):
     #     print('Aiiiieeee! %d' % data_format)
     #     raise Exception()
 
+
 def readIfCounters(up):
     if_cnt = IfCounterRecord()
     if_cnt.if_index = up.unpack_uint()
@@ -484,11 +535,13 @@ def readIfCounters(up):
     print('if_cnt.if_promiscuous_mode = %d' % if_cnt.if_promiscuous_mode)
     return if_cnt
 
+
 def readEthernetCounters(up):
     eth_cnt = EthernetCounterRecord()
     for i in range(13):
         up.unpack_uint()
     return eth_cnt
+
 
 def readVlanCounters(up):
     vlan_id = up.unpack_uint()
@@ -497,7 +550,10 @@ def readVlanCounters(up):
     multicast_pkts = up.unpack_uint()
     broadcast_pkts = up.unpack_uint()
     discards = up.unpack_uint()
-    print('vlan_id: %d, octets: %d, ucast: %d, mcast: %d, bcast: %d, discards: %d' % (vlan_id, octets, ucast_pkts, multicast_pkts, broadcast_pkts, discards))
+    print('vlan_id: %d, octet: %d, ucast: %d, mcast: %d, bcast: %d, discard: %d'
+          % (vlan_id, octets, ucast_pkts,
+             multicast_pkts, broadcast_pkts, discards))
+
 
 def readProcessorInfo(up):
     cpu_5s = up.unpack_int()
@@ -506,7 +562,9 @@ def readProcessorInfo(up):
     total_memory = up.unpack_uhyper()
     free_memory = up.unpack_uhyper()
 
-    print('<procinfo cpu (5s/1m/5m): %d %d %d  |mem(free/total): %d/%d' % (cpu_5s, cpu_1m, cpu_5m, free_memory, total_memory))
+    print('<procinfo cpu (5s/1m/5m): %d %d %d  |mem(free/total): %d/%d'
+          % (cpu_5s, cpu_1m, cpu_5m, free_memory, total_memory))
+
 
 def readCounterRecord(up):
     data_format = up.unpack_uint()
@@ -514,19 +572,23 @@ def readCounterRecord(up):
                                                     # funcalls is
                                                     # important
     items = []
-    if data_format == 1:        # enterprise = 0, format = 1 -> struct if_counters
+    if data_format == 1:
+        # enterprise = 0, format = 1 -> struct if_counters
         print('if_counters')
         while up.get_position() < data_end - 1:
             items.append(readIfCounters(up))
-    elif data_format == 2:      # enterprise = 0, format = 2 -> struct ethernet_counters
+    elif data_format == 2:
+        # enterprise = 0, format = 2 -> struct ethernet_counters
         print('ethernet_counters')
         while up.get_position() < data_end - 1:
             items.append(readEthernetCounters(up))
-    elif data_format == 5:      # enterprise = 0, format = 5 -> struct vlan_counters
+    elif data_format == 5:      
+        # enterprise = 0, format = 5 -> struct vlan_counters
         print('vlan_counters')
         while up.get_position() < data_end - 1:
             items.append(readVlanCounters(up))
-    elif data_format == 1001:   # enterprise = 0, format = 1001 -> struct processor
+    elif data_format == 1001:   
+        # enterprise = 0, format = 1001 -> struct processor
         print('processor info')
         while up.get_position() < data_end - 1:
             items.append(readProcessorInfo(up))
@@ -539,7 +601,6 @@ def readCounterRecord(up):
         up.set_position(data_end)
         return None
     return items
-
 
 
 def readCounterSample(up):
@@ -565,7 +626,8 @@ def listenForSFlow(callback, address='0.0.0.0', port=6343):
         for sample in sflow_data:
             callback(src_addr, sample)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     listen_addr = ("0.0.0.0", 6343)
     sock = socket(AF_INET, SOCK_DGRAM)
     sock.bind(listen_addr)

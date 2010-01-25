@@ -11,7 +11,7 @@ def replay(dump_filename, port, dst_addr='127.0.0.1'):
     addr = (dst_addr, port)
     sock = socket(AF_INET, SOCK_DGRAM)
 
-    dump_file = open(dump_filename, 'r')
+    dump_file = open(dump_filename, 'rb')
     file_size = stat(dump_filename)[ST_SIZE]
     while dump_file.tell() < file_size - 1:
         length = unpack("H", dump_file.read(2))[0]

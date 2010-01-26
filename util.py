@@ -24,26 +24,61 @@ def hexdump_bytes(buf, stream=stdout):
     """Prints a 'classic' hexdump, ie two blocks of 8 bytes per line,
     to stream."""
 
-    # Print all 16-byte chunks but the last
+    # Various values that determine the formatting of the hexdump.
+    # - col_fmt is the format used for an individual value
+    # - col_width gives the width of an individual value
+    # - off_fmt determines the formatting of the byte offset displayed
+    #   on the left.
+    # - sep1_width determines how much whitespaces is inserted between
+    #   columns 8 and 9.
+    # - sep2_width determines the amount of whitespace between column
+    #   16 and the ASCII column on the right
+
+    col_fmt = '%02X '
+    col_width = 3
+    off_fmt = '%%0%dX    ' % int(ceil(log(len(buf), 16)))
+    sep1_width = 3
+    sep2_width = 5
+    
+    # Print all complete 16-byte chunks.
     for blk_idx in range(len(buf) // 16):
-        stream.write(('%%0%dX    ' % int(ceil(log(len(buf), 16)))) % (blk_idx * 16))
+        stream.write(off_fmt % (blk_idx * 16))
+
         for offset in range(8):
-            stream.write('%02X ' % buf[blk_idx * 16 + offset])
-        stream.write(' ')
+            stream.write(col_fmt % buf[blk_idx * 16 + offset])
+
+        stream.write(' ' * sep1_width)
+
         for offset in range(8, 16):
-            stream.write('%02X ' % buf[blk_idx * 16 + offset])
-        stream.write('    ')
+            stream.write(col_fmt % buf[blk_idx * 16 + offset])
+
+        stream.write(' ' * sep2_width)
+
         for offset in range(16):
             c = chr(buf[blk_idx * 16 + offset])
             stream.write('%c' % hexdump_escape(c))
+
         stream.write('\n')
 
-    # Print the last chunk, possibly less than 16 bytes long
-    stream.write(('%%0%dX   ' % int(ceil(log(len(buf), 16))) % (len(buf) - (len(buf) % 16))))
-    for offset in range(min(len(buf) % 16, 8)):
-        stream.write('%02X ' % buf[len(buf) - (len(buf) // 16) * 16 + offset])
+    # Print the remaining bytes.
+    if len(buf) % 16 > 0:
+        stream.write(off_fmt % (len(buf) - (len(buf) % 16)))
 
-    stream.write('  ')
-    for offset in range(8, min(len(buf) % 16, 16)):
-        stream.write('%02X ' % buf[len(buf) - (len(buf) // 16) * 16 + offset])
-    stream.write('\n')
+        blk_off = len(buf) - len(buf) % 16
+
+        for offset in range(min(len(buf) % 16, 8)):
+            stream.write(col_fmt % buf[blk_off + offset])
+
+        stream.write(' ' * sep1_width)
+
+        for offset in range(8, len(buf) % 16):
+            stream.write(col_fmt % buf[blk_off + offset])
+
+        stream.write(' ' * ((16 - len(buf) % 16) * col_width))
+        stream.write(' ' * sep2_width)
+
+        for offset in range(len(buf) % 16):
+            c = chr(buf[len(buf) - (len(buf) // 16) * 16 + offset])
+            stream.write('%c' % hexdump_escape(c))
+
+        stream.write('\n')

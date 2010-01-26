@@ -206,8 +206,6 @@ def read_sampled_header(up, sample_datagram):
     # print("read_sampled_header:header",header)
     print('read_sampled_header:header')
     hexdump_bytes(bytes(header))
-    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ip_to_string(header_source_ip)))
-    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ip_to_string(header_dst_ip)))
 
 
 def read_sampled_ethernet(up, sample_datagram):

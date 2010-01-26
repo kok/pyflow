@@ -11,6 +11,55 @@ from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
 from util import ip_to_string, hexdump_bytes
 
+DebugMode = True
+
+class LoggingUnpacker(Unpacker):
+    """Adds logging functionality to the standard xdrlib.Unpacker."""
+
+    def unpack_hyper(self, description='generic hyper: '):
+        global DebugMode
+        x = Unpacker.unpack_hyper(self)
+        if DebugMode:
+            print('%s %d' % (description, x))
+        return x
+
+    def unpack_uhyper(self, description='generic uhyper: '):
+        global DebugMode
+        x = Unpacker.unpack_uhyper(self)
+        if DebugMode:
+            print('%s %d' % (description, x))
+        return x
+
+    def unpack_uint(self, description='generic uint: '):
+        global DebugMode
+        x = Unpacker.unpack_uint(self)
+        if DebugMode:
+            print('%s %d' % (description, x))
+        return x
+
+    def unpack_int(self, description='generic int: '):
+        global DebugMode
+        x = Unpacker.unpack_int(self)
+        if DebugMode:
+            print('%s %d' % (description, x))
+        return x
+
+    def unpack_opaque(self, description='generic opaque'):
+        global DebugMode
+        x = Unpacker.unpack_opaque(self)
+        if DebugMode:
+            print(description)
+            hexdump_bytes(x)
+        return x
+        
+    def unpack_fopaque(self, length, description='generic fixed-length opaque'):
+        global DebugMode
+        x = Unpacker.unpack_fopaque(self, length)
+        if DebugMode:
+            print(description)
+            hexdump_bytes(x)
+        return x
+
 
 def decode_sflow_data_source(sflow_data_source):
     """Decodes a sflow_data_source as described in the sFlow v5
@@ -20,8 +69,13 @@ def decode_sflow_data_source(sflow_data_source):
     #   1 = smonVlanDataSource
     #   2 = entPhysicalEntry
 
+    global DebugMode
+
     source_type = sflow_data_source >> 24
     value = sflow_data_source & 0xfff
+
+    if DebugMode:
+        print('sflow_data_source (source_type, value) = %s' % str((source_type, value)))
 
     return (source_type, value)
 
@@ -29,13 +83,10 @@ def decode_sflow_data_source(sflow_data_source):
 def read_sflow_stream(addr, data):
 
     # Create unpacker
-    up = Unpacker(data)
+    up = LoggingUnpacker(data)
 
-    # Get version version of sflow packet
-    version = up.unpack_int()
-    print('\n\nread_sflow_stream:version = %d' % version)
+    version = up.unpack_int('sflow_version')
 
-    # Reset to beginning
     up.set_position(0)
     if version == 5:
         read_sample_datagram(up)
@@ -56,7 +107,7 @@ def read_sample_datagram(up):
     # Unpack sample_datagram union
     #     uint version
     #     sample_datagram_v5 datagram
-    version = up.unpack_int()
+    version = up.unpack_int('sflow_version')
     assert(version == 5)
 
     # Unpack sample_datagram_v5 structure
@@ -69,26 +120,18 @@ def read_sample_datagram(up):
     #    unsigned int uptime;
     #         Current time (in milliseconds since device last booted).
     #    sample_record samples<>;       An array of sample records
-    af = up.unpack_int()
+    af = up.unpack_int('address family (1=IPv4)')
     if af == 1:                 # IPv4
-        agent_address = up.unpack_uint()
+        agent_address = up.unpack_uint('agent address')
     else:
         raise Exception()
 
-    sub_agent_id = up.unpack_uint()
-    sequence_number = up.unpack_uint()
-    uptime = up.unpack_uint()
-    nb_sample_records = up.unpack_uint()
+    sub_agent_id = up.unpack_uint('sub_agent_id')
+    sequence_number = up.unpack_uint('sequence_number')
+    uptime = up.unpack_uint('uptime')
+    nb_sample_records = up.unpack_uint('number of records')
 
     
-    # Print debug information
-    print('read_sample_datagram:agent_address = %d' % agent_address)
-    print('read_sample_datagram:af = %d' % af)
-    print('read_sample_datagram:sub_agent_id = %d' % sub_agent_id)
-    print('read_sample_datagram:sequence_number = %d' % sequence_number)
-    print('read_sample_datagram:uptime = %d' % uptime)
-    print('read_sample_datagram:nb_sample_records = %d' % nb_sample_records)
-
     # Iterating over sample records
     for i in range(nb_sample_records):
         print("read_sample_datagram:Reading sample record",i)
@@ -111,7 +154,7 @@ def read_sample_record(up, sample_datagram):
     #       A structure corresponding to the sample_type
 
     # Decode sample type
-    sample_type = up.unpack_uint()
+    sample_type = up.unpack_uint('sample_type')
     enterprise = sample_type >> 12
     format = sample_type & 0xfff
     print('read_sample_record:sample_type == %d (%d, %d)'
@@ -119,12 +162,12 @@ def read_sample_record(up, sample_datagram):
 
     # Unpack sample data
     sample_data = up.unpack_opaque()
-    up_sample_data = Unpacker(sample_data)
+    up_sample_data = LoggingUnpacker(sample_data)
     
     if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
         read_flow_sample(up_sample_data, sample_datagram)
     elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
-        read_couter_sample(up_sample_data, sample_datagram)
+        read_counter_sample(up_sample_data, sample_datagram)
     else:
         raise Exception()
 
@@ -148,28 +191,17 @@ def read_flow_sample(up, sample_datagram):
     #    interface output;               Interface packet was sent on.
     #    flow_record flow_records<>;     Information about a sampled packet
 
-    sequence_number = up.unpack_uint()
-    source_id = up.unpack_uint()
-    sampling_rate = up.unpack_uint()
-    sample_pool = up.unpack_uint()
-    drops = up.unpack_uint()
-    input_if = up.unpack_uint()
-    output_if = up.unpack_uint()
-    nb_flow_records = up.unpack_uint()
+    sequence_number = up.unpack_uint('sequence_number')
+    source_id = up.unpack_uint('source_id')
+    sampling_rate = up.unpack_uint('sampling_rate')
+    sample_pool = up.unpack_uint('sample_pool')
+    drops = up.unpack_uint('drops')
+    input_if = up.unpack_uint('input_if')
+    output_if = up.unpack_uint('output_if')
+    nb_flow_records = up.unpack_uint('nb_flow_records')
 
     (source_id_index, source_id_value) = decode_sflow_data_source(source_id)
 
-    # Some debug output
-    print("read_flow_sample:sequence_number = %d" % sequence_number)
-    print("read_flow_sample:source_id = %d (%d, %d)"
-          % (source_id,source_id_index, source_id_value))
-    print("read_flow_sample:sampling_rate = %d" % sampling_rate)
-    print("read_flow_sample:sample_pool = %d" % sample_pool)
-    print("read_flow_sample:drops = %d" % drops)
-    print("read_flow_sample:input_if = %d" % (input_if))
-    print("read_flow_sample:output_if = %d" % (output_if))
-    print("read_flow_sample:nb_flow_records = %d" % nb_flow_records)
-    
     # Iterating over flow records
     for i in range(nb_flow_records):
         read_flow_record(up, sample_datagram)
@@ -183,7 +215,7 @@ def read_flow_record(up, sample_datagram):
     #         Flow data uniquely defined by the flow_format.
 
     # Unpack data format
-    flow_format = up.unpack_uint()
+    flow_format = up.unpack_uint('flow_format')
     enterprise = flow_format >> 12
     format = flow_format & 0xfff
     print('read_flow_record:flow_format == %d (%d, %d)'
@@ -191,7 +223,7 @@ def read_flow_record(up, sample_datagram):
 
     # Uppack whole data block
     flow_data = up.unpack_opaque()
-    up_flow_data = Unpacker(flow_data)
+    up_flow_data = LoggingUnpacker(flow_data)
     
     # Further unpacking depending on format
     if format == 1:
@@ -219,19 +251,14 @@ def read_sampled_header(up, sample_datagram):
     #                                    extracting the header<> octets.
     #     opaque header<>;               Header bytes
 
-    header_protocol = up.unpack_int()
-    frame_length = up.unpack_uint()
-    stripped = up.unpack_uint()
+    header_protocol = up.unpack_int('header_protocol')
+    frame_length = up.unpack_uint('frame_length')
+    stripped = up.unpack_uint('stripped')
     header = up.unpack_opaque()
 
     # Decode header data
     decode_sampled_header(header)
     
-    print("read_sampled_header:header_protocol = %d" % header_protocol)
-    print("read_sampled_header:frame_length = %d" % frame_length)
-    print("read_sampled_header:stripped = %d" % stripped)
-
-    # print("read_sampled_header:header",header)
     print('read_sampled_header:header')
     hexdump_bytes(bytes(header))
 
@@ -245,16 +272,11 @@ def read_sampled_ethernet(up, sample_datagram):
     #     mac dst_mac;           Destination MAC address
     #     unsigned int type;     Ethernet packet type
 
-    length = up.unpack_uint()
+    length = up.unpack_uint('length')
     src_mac = up.unpack_fopaque(6)
     dst_mac = up.unpack_fopaque(6)
-    eth_type = up.unpack_uint()
+    eth_type = up.unpack_uint('eth_type')
 
-    print("read_sampled_ethernet:length = %d" % length)
-    print("read_sampled_ethernet:src_mac = %d" % src_mac)
-    print("read_sampled_ethernet:dst_mac = %d" % dst_mac)
-    print("read_sampled_ethernet:eth_type = %d" % eth_type)
-    
 
 def read_sampled_ipv4(up, sample_datagram):
 
@@ -271,59 +293,34 @@ def read_sampled_ipv4(up, sample_datagram):
     #     unsigned int tos;        IP type of service
 
     # Unpack fields
-    length = up.unpack_uint()
-    protocol = up.unpack_uint()
+    length = up.unpack_uint('length')
+    protocol = up.unpack_uint('protocol')
     src_ip = up.unpack_fopaque(4)
     dst_ip = up.unpack_fopaque(4)
-    src_port = up.unpack_uint()
-    dst_port = up.unpack_uint()
-    tcp_flags = up.unpack_uint()
-    tos = up.unpack_uint()
-
-    # Some debug output
-    print("read_sampled_ipv4:length = %d" % length)
-    print("read_sampled_ipv4:protocol = %d" % protocol)
-    print("read_sampled_ipv4:src_ip = %d (%s)" % (src_ip, ip_to_string(src_ip)))
-    print("read_sampled_ipv4:dst_ip = %d (%s)" % (dst_ip, ip_to_string(dst_ip)))
-    print("read_sampled_ipv4:src_port = %d" % src_port)
-    print("read_sampled_ipv4:dst_port = %d" % dst_port)
-    print("read_sampled_ipv4:tcp_flags = %d" % tcp_flags)
-    print("read_sampled_ipv4:tos = %d" % tos)
-    
+    src_port = up.unpack_uint('src_port')
+    dst_port = up.unpack_uint('dst_port')
+    tcp_flags = up.unpack_uint('tcp_flags')
+    tos = up.unpack_uint('tos')
 
 
 def decode_sampled_header(header):
 
     # TODO: Decoder for sampled header data
-    up_header = Unpacker(header)
-#    header_first_byte = up_header.unpack_uint()
-#    header_version = header_first_byte >> 28
-#    header_second_byte = up_header.unpack_uint()
-#    header_third_byte = up_header.unpack_uint()
-#    header_source_ip = up_header.unpack_uint()
-#    header_dst_ip = up_header.unpack_uint()
-
-#    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ipToString(header_source_ip)))
-#    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ipToString(header_dst_ip)))
+    up_header = LoggingUnpacker(header)
 
 
-
-def read_couter_sample(up, sample_datagram):
+def read_counter_sample(up, sample_datagram):
 
     # Unpack counter_sample structure
     #     unsigned int sequence_number;   Incremented with each counter sample generated by this source_id
     #     sflow_data_source source_id;    sFlowDataSource
     #     counter_record counters<>;      Counters polled for this source
     
-    sequence_number = up.unpack_uint()
-    source_id = up.unpack_uint()
-    nb_counters = up.unpack_uint()
+    sequence_number = up.unpack_uint('sequence_number')
+    source_id = up.unpack_uint('source_id')
+    nb_counters = up.unpack_uint('nb_counters')
 
     (source_id_index, source_id_value) = decode_sflow_data_source(source_id)
-
-    # Some debug output
-    print("read_counter_sample:sequence_number = %d" % sequence_number)
-    print("read_counter_sample:source_id = %d (%d, %d)" % (source_id,source_id_index, source_id_value))
 
     # Iterating over counter records
     for i in range(nb_counters):
@@ -336,14 +333,13 @@ def read_counter_record(up, sample_datagram):
     #     opaque counter_data<>;          A block of counters uniquely defined by the counter_format.
     
     # Unpack data format
-    counter_format = up.unpack_uint()
+    counter_format = up.unpack_uint('counter_format')
     enterprise = counter_format >> 12
     format = counter_format & 0xfff
-    print('read_counter_record:counter_format == %d (%d, %d)' % (counter_format, enterprise, format))
     
     # Uppack whole data block
     counter_data = up.unpack_opaque()
-    up_counter_data = Unpacker(counter_data)
+    up_counter_data = LoggingUnpacker(counter_data)
     
     # Further unpacking depending on format
     if format == 1:
@@ -390,47 +386,26 @@ def read_if_counters(up, sample_datagram):
     #     unsigned int ifOutErrors;
     #     unsigned int ifPromiscuousMode;
     
-    ifIndex = up.unpack_uint()
-    ifType = up.unpack_uint()
-    ifSpeed = up.unpack_uhyper()
-    ifDirection = up.unpack_uint()
-    ifStatus = up.unpack_uint()
-    ifInOctets = up.unpack_uhyper()
-    ifInUcastPkts = up.unpack_uint()
-    ifInMulticastPkts = up.unpack_uint()
-    ifInBroadcastPkts = up.unpack_uint()
-    ifInDiscards = up.unpack_uint()
-    ifInErrors = up.unpack_uint()
-    ifInUnknownProtos = up.unpack_uint()
-    ifOutOctets = up.unpack_uhyper()
-    ifOutUcastPkts = up.unpack_uint()
-    ifOutMulticastPkts = up.unpack_uint()
-    ifOutBroadcastPkts = up.unpack_uint()
-    ifOutDiscards = up.unpack_uint()
-    ifOutErrors = up.unpack_uint()
-    ifPromiscuousMode = up.unpack_uint()
+    ifIndex = up.unpack_uint('if_index')
+    ifType = up.unpack_uint('if_type')
+    ifSpeed = up.unpack_uhyper('if_speed')
+    ifDirection = up.unpack_uint('if_direction')
+    ifStatus = up.unpack_uint('if_status')
+    ifInOctets = up.unpack_uhyper('if_in_octets')
+    ifInUcastPkts = up.unpack_uint('if_in_ucasts')
+    ifInMulticastPkts = up.unpack_uint('if_in_mcasts')
+    ifInBroadcastPkts = up.unpack_uint('if_in_bcasts')
+    ifInDiscards = up.unpack_uint('if_in_discards')
+    ifInErrors = up.unpack_uint('if_in_errors')
+    ifInUnknownProtos = up.unpack_uint('if_in_unknown')
+    ifOutOctets = up.unpack_uhyper('if_out_octets')
+    ifOutUcastPkts = up.unpack_uint('if_out_ucasts')
+    ifOutMulticastPkts = up.unpack_uint('if_out_mcasts')
+    ifOutBroadcastPkts = up.unpack_uint('if_out_bcasts')
+    ifOutDiscards = up.unpack_uint('if_out_discards')
+    ifOutErrors = up.unpack_uint('if_out_errors')
+    ifPromiscuousMode = up.unpack_uint('if_promisc')
 
-    # Print debug output
-    print("read_if_counters:ifIndex = %d" %  ifIndex)
-    print("read_if_counters:ifType = %d" %  ifType)
-    print("read_if_counters:ifSpeed = %d" %  ifSpeed)
-    print("read_if_counters:ifDirection = %d" %  ifDirection)
-    print("read_if_counters:ifStatus = %d" %  ifStatus)
-    print("read_if_counters:ifInOctets = %d" %  ifInOctets)
-    print("read_if_counters:ifInUcastPkts = %d" %  ifInUcastPkts)
-    print("read_if_counters:ifInMulticastPkts = %d" %  ifInMulticastPkts)
-    print("read_if_counters:ifInBroadcastPkts = %d" %  ifInBroadcastPkts)
-    print("read_if_counters:ifInDiscards = %d" %  ifInDiscards)
-    print("read_if_counters:ifInErrors = %d" %  ifInErrors)
-    print("read_if_counters:ifInUnknownProtos = %d" %  ifInUnknownProtos)
-    print("read_if_counters:ifOutOctets = %d" %  ifOutOctets)
-    print("read_if_counters:ifOutUcastPkts = %d" %  ifOutUcastPkts)
-    print("read_if_counters:ifOutMulticastPkts = %d" %  ifOutMulticastPkts)
-    print("read_if_counters:ifOutBroadcastPkts = %d" %  ifOutBroadcastPkts)
-    print("read_if_counters:ifOutDiscards = %d" %  ifOutDiscards)
-    print("read_if_counters:ifOutErrors = %d" %  ifOutErrors)
-    print("read_if_counters:ifPromiscuousMode = %d" %  ifPromiscuousMode)
-    
 
 def read_ethernet_counters(up, sample_datagram):
 
@@ -462,22 +437,6 @@ def read_ethernet_counters(up, sample_datagram):
     dot3StatsFrameTooLongs = up.unpack_uint()
     dot3StatsInternalMacReceiveErrors = up.unpack_uint()
     dot3StatsSymbolErrors = up.unpack_uint()
-
-    # Print debug output
-    print("read_ethernet_counters:dot3StatsAlignmentErrors = %s" %  dot3StatsAlignmentErrors)
-    print("read_ethernet_counters:dot3StatsFCSErrors = %s" %  dot3StatsFCSErrors)
-    print("read_ethernet_counters:dot3StatsSingleCollisionFrames = %s" %  dot3StatsSingleCollisionFrames)
-    print("read_ethernet_counters:dot3StatsMultipleCollisionFrames = %s" %  dot3StatsMultipleCollisionFrames)
-    print("read_ethernet_counters:dot3StatsSQETestErrors = %s" %  dot3StatsSQETestErrors)
-    print("read_ethernet_counters:dot3StatsDeferredTransmissions = %s" %  dot3StatsDeferredTransmissions)
-    print("read_ethernet_counters:dot3StatsLateCollisions = %s" %  dot3StatsLateCollisions)
-    print("read_ethernet_counters:dot3StatsExcessiveCollisions = %s" %  dot3StatsExcessiveCollisions)
-    print("read_ethernet_counters:dot3StatsInternalMacTransmitErrors = %s" %  dot3StatsInternalMacTransmitErrors)
-    print("read_ethernet_counters:dot3StatsCarrierSenseErrors = %s" %  dot3StatsCarrierSenseErrors)
-    print("read_ethernet_counters:dot3StatsFrameTooLongs = %s" %  dot3StatsFrameTooLongs)
-    print("read_ethernet_counters:dot3StatsInternalMacReceiveErrors = %s" %  dot3StatsInternalMacReceiveErrors)
-    print("read_ethernet_counters:dot3StatsSymbolErrors = %s" %  dot3StatsSymbolErrors)
-    
 
 
 def read_tokenring_counters(up, sample_datagram):
@@ -521,26 +480,6 @@ def read_tokenring_counters(up, sample_datagram):
     dot5StatsSingles = up.unpack_uint()
     dot5StatsFreqErrors = up.unpack_uint()
 
-    # Debug output
-    print("read_tokenring_counters:dot5StatsLineErrors = %d" % dot5StatsLineErrors)
-    print("read_tokenring_counters:dot5StatsBurstErrors = %d" % dot5StatsBurstErrors)
-    print("read_tokenring_counters:dot5StatsACErrors = %d" % dot5StatsACErrors)
-    print("read_tokenring_counters:dot5StatsAbortTransErrors = %d" % dot5StatsAbortTransErrors)
-    print("read_tokenring_counters:dot5StatsInternalErrors = %d" % dot5StatsInternalErrors)
-    print("read_tokenring_counters:dot5StatsLostFrameErrors = %d" % dot5StatsLostFrameErrors)
-    print("read_tokenring_counters:dot5StatsReceiveCongestions = %d" % dot5StatsReceiveCongestions)
-    print("read_tokenring_counters:dot5StatsFrameCopiedErrors = %d" % dot5StatsFrameCopiedErrors)
-    print("read_tokenring_counters:dot5StatsTokenErrors = %d" % dot5StatsTokenErrors)
-    print("read_tokenring_counters:dot5StatsSoftErrors = %d" % dot5StatsSoftErrors)
-    print("read_tokenring_counters:dot5StatsHardErrors = %d" % dot5StatsHardErrors)
-    print("read_tokenring_counters:dot5StatsSignalLoss = %d" % dot5StatsSignalLoss)
-    print("read_tokenring_counters:dot5StatsTransmitBeacons = %d" % dot5StatsTransmitBeacons)
-    print("read_tokenring_counters:dot5StatsRecoverys = %d" % dot5StatsRecoverys)
-    print("read_tokenring_counters:dot5StatsLobeWires = %d" % dot5StatsLobeWires)
-    print("read_tokenring_counters:dot5StatsRemoves = %d" % dot5StatsRemoves)
-    print("read_tokenring_counters:dot5StatsSingles = %d" % dot5StatsSingles)
-    print("read_tokenring_counters:dot5StatsFreqErrors = %d" % dot5StatsFreqErrors)
-
 
 def read_vg_counters(up, sample_datagram):
 
@@ -575,22 +514,6 @@ def read_vg_counters(up, sample_datagram):
     dot12HCInNormPriorityOctets = up.unpack_uhyper()
     dot12HCOutHighPriorityOctets = up.unpack_uhyper()
 
-    # Backup output
-    print("read_vg_counters:dot12InHighPriorityFrames = %d" % dot12InHighPriorityFrames)
-    print("read_vg_counters:dot12InHighPriorityOctets = %d" % dot12InHighPriorityOctets)
-    print("read_vg_counters:dot12InNormPriorityFrames = %d" % dot12InNormPriorityFrames)
-    print("read_vg_counters:dot12InNormPriorityOctets = %d" % dot12InNormPriorityOctets)
-    print("read_vg_counters:dot12InIPMErrors = %d" % dot12InIPMErrors)
-    print("read_vg_counters:dot12InOversizeFrameErrors = %d" % dot12InOversizeFrameErrors)
-    print("read_vg_counters:dot12InDataErrors = %d" % dot12InDataErrors)
-    print("read_vg_counters:dot12InNullAddressedFrames = %d" % dot12InNullAddressedFrames)
-    print("read_vg_counters:dot12OutHighPriorityFrames = %d" % dot12OutHighPriorityFrames)
-    print("read_vg_counters:dot12OutHighPriorityOctets = %d" % dot12OutHighPriorityOctets)
-    print("read_vg_counters:dot12TransitionIntoTrainings = %d" % dot12TransitionIntoTrainings)
-    print("read_vg_counters:dot12HCInHighPriorityOctets = %d" % dot12HCInHighPriorityOctets)
-    print("read_vg_counters:dot12HCInNormPriorityOctets = %d" % dot12HCInNormPriorityOctets)
-    print("read_vg_counters:dot12HCOutHighPriorityOctets = %d" % dot12HCOutHighPriorityOctets)
-
 
 def read_vlan_counters(up, sample_datagram):
 
@@ -608,14 +531,6 @@ def read_vlan_counters(up, sample_datagram):
     multicastPkts = up.unpack_uint()
     broadcastPkts = up.unpack_uint()
     discards = up.unpack_uint()
-
-    # Print backup output
-    print("read_vg_counters:vlan = %d" % vlan)
-    print("read_vg_counters:octets = %d" % octets)
-    print("read_vg_counters:ucastPkts = %d" % ucastPkts)
-    print("read_vg_counters:multicastPkts = %d" % multicastPkts)
-    print("read_vg_counters:broadcastPkts = %d" % broadcastPkts)
-    print("read_vg_counters:discards = %d" % discards)
 
 
 class SFlow (object):
@@ -866,15 +781,15 @@ def readEthernetCounters(up):
 
 
 def readVlanCounters(up):
-    vlan_id = up.unpack_uint()
-    octets = up.unpack_uhyper()
-    ucast_pkts = up.unpack_uint()
-    multicast_pkts = up.unpack_uint()
-    broadcast_pkts = up.unpack_uint()
-    discards = up.unpack_uint()
-    print('vlan_id: %d, octet: %d, ucast: %d, mcast: %d, bcast: %d, discard: %d'
-          % (vlan_id, octets, ucast_pkts,
-             multicast_pkts, broadcast_pkts, discards))
+    vlan_id = up.unpack_uint('vlan_id')
+    octets = up.unpack_uhyper('octets')
+    ucast_pkts = up.unpack_uint('ucasts')
+    multicast_pkts = up.unpack_uint('mcasts')
+    broadcast_pkts = up.unpack_uint('bcasts')
+    discards = up.unpack_uint('discards')
+    # print('vlan_id: %d, octet: %d, ucast: %d, mcast: %d, bcast: %d, discard: %d'
+    #       % (vlan_id, octets, ucast_pkts,
+    #          multicast_pkts, broadcast_pkts, discards))
 
 
 def readProcessorInfo(up):
@@ -949,10 +864,13 @@ def listenForSFlow(callback, address='0.0.0.0', port=6343):
             callback(src_addr, sample)
 
 
-if __name__ == '__main__':
+def main():
     listen_addr = ("0.0.0.0", 6343)
     sock = socket(AF_INET, SOCK_DGRAM)
     sock.bind(listen_addr)
     while True:
         data, addr = sock.recvfrom(65535)
         read_sflow_stream(addr, data)
+
+if __name__ == '__main__':
+    main()

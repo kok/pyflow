@@ -39,6 +39,17 @@ def ip_proto_to_string(proto):
         return 'unknown(%d)' % proto
 
 
+def speed_to_string(speed):
+    speed_name = { 100000000 : '100Mb',
+                   1000000000 : '1Gb',
+                   10000000000 : '10Gb' }
+
+    if speed in speed_name:
+        return speed_name[speed]
+    else:
+        return str(speed)
+
+
 def hexdump_escape(c):
     """Returns c if its ASCII code is in [32,126]."""
     if 32 <= ord(c) <= 126:

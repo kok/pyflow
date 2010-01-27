@@ -347,14 +347,14 @@ def decode_iso88023(header):
             vlan_id = header[14] * 256 + header[15]
             ether_type = header[16] * 256 + header[17]
 
-            h = IEEE8021QHeader(vlan_id, dst, src, ether_type, None, len(header))
+            h = IEEE8021QHeader(vlan_id, src, dst, ether_type, None, len(header))
 
             # 18 + 20 = <bytes read so far> + <minimal IP header length>
             if len(header) >= 18 + 20:
                 h.payload = decode_ipv4(header[18:])
             return h
         else:
-            h = EthernetHeader(dst, src, ether_type, None, len(header))
+            h = EthernetHeader(src, dst, ether_type, None, len(header))
             if len(header) >= 14 + 20:
                 h.payload = decode_ipv4(header[18:])
             return h
@@ -379,7 +379,7 @@ def read_sampled_ethernet(up, sample_datagram):
     eth_type = up.unpack_uint()
 
     # TODO: len(..) is almost certainly wrong.  Also check the order of dst,src.
-    return EthernetHeader(dst, src, ether_type, None, len(up.get_buffer()))
+    return EthernetHeader(src, dst, ether_type, None, len(up.get_buffer()))
     
 
 def read_sampled_ipv4(up, sample_datagram):

@@ -6,15 +6,35 @@ Since the datagram format is specified using XDR the following RFCs
 may be useful: 1014, 1832, 4506."""
 
 
+# Standards and Specs
+#
+# The sFlow v5 format is documented in
+# www.sflow.org/sflow_version_5.txt, a copy of which is included in
+# the doc/ subdirectory of the pyflow repo.  Page numbers refer to
+# this document.
+#
+#
+# The IEEE 802.x / ISO/IEC 8802.x and IPv4 headers are documented at
+#
+# http://de.wikipedia.org/wiki/IPv4#Header-Format
+# http://en.wikipedia.org/wiki/IEEE_802.1Q
+# http://en.wikipedia.org/wiki/Ethernet
+
+
 from xdrlib import Unpacker
 from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
 from util import ip_to_string, hexdump_bytes, mac_to_string, ether_type_to_string, ip_proto_to_string
 
 
+# Constants for the sample_data member of 'struct sample_record'
+# (p. 32).  See pp. 29-31 for the meaning of these values.
 SAMPLE_DATA_FLOW_RECORD = 1
 SAMPLE_DATA_COUNTER_RECORD = 2
 
+
+# Constants for the flow_format member of 'struct flow_record'
+# (p. 29).  See pp. 35-41 for the meaning of these values.
 FLOW_DATA_RAW_HEADER = 1
 FLOW_DATA_ETHERNET_HEADER = 2
 FLOW_DATA_IPV4_HEADER = 3
@@ -31,6 +51,7 @@ FLOW_DATA_EXT_MPLS_VC = 1009
 FLOW_DATA_EXT_MPLS_FEC = 1010
 FLOW_DATA_EXT_MPLS_LVP_FEC = 1011
 FLOW_DATA_EXT_VLAN_TUNNEL = 1012
+
 
 # Constants for 'enum header_protocol'.  See p.35 of the sFlow v5
 # spec.
@@ -49,7 +70,11 @@ HEADER_PROTO_IPV6 = 12
 HEADER_PROTO_MPLS = 13
 HEADER_PROTO_POS = 14
 
+
+# Constants decribing the values of the 'type' field of
+# IEEE802.3/IEEE802.1Q headers.
 ETHER_TYPE_IEEE8021Q = 0x8100
+
 
 class EthernetHeader ():
     """Represents an IEEE 802.3 header including its payload."""

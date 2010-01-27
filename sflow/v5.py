@@ -53,6 +53,13 @@ FLOW_DATA_EXT_MPLS_LVP_FEC = 1011
 FLOW_DATA_EXT_VLAN_TUNNEL = 1012
 
 
+COUNTER_DATA_GENERIC = 1
+COUNTER_DATA_ETHERNET= 2
+COUNTER_DATA_TOKENRING = 3
+COUNTER_DATA_VG = 4
+COUNTER_DATA_VLAN = 5
+COUNTER_DATA_PROCESSOR = 1001
+
 # Constants for 'enum header_protocol'.  See p.35 of the sFlow v5
 # spec.
 HEADER_PROTO_ETHERNET_ISO88023 = 1
@@ -436,15 +443,15 @@ def read_counter_record(up, sample_datagram):
     counter_data = up.unpack_opaque()
     up_counter_data = Unpacker(counter_data)
     
-    if counter_format == 1:
+    if counter_format == COUNTER_DATA_GENERIC:
         return read_if_counters(up_counter_data, sample_datagram)
-    elif counter_format == 2:
+    elif counter_format == COUNTER_DATA_ETHERNET:
         return read_ethernet_counters(up_flow_data, sample_datagram)  
-    elif counter_format == 3:
+    elif counter_format == COUNTER_DATA_TOKENRING:
         return read_tokenring_counters(up_flow_data, sample_datagram)  
-    elif counter_format == 4:
+    elif counter_format == COUNTER_DATA_VG:
         return read_vg_counters(up_flow_data, sample_datagram)  
-    elif counter_format == 5:
+    elif counter_format == COUNTER_DATA_VLAN:
         return read_vlan_counters(up_flow_data, sample_datagram)  
     else:
         return 'read_flow_record:Unknown data_format (%d)' % format

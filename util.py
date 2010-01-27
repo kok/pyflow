@@ -2,14 +2,41 @@ from sys import stdout
 from socket import ntohl
 from math import floor, ceil, log
 
+ether_type_description = { 0x0800 : 'IP',
+                           0x0806 : 'ARP',
+                           0x8100 : '802.1Q(VLAN)',
+                           0x86DD : 'IPv6' }
+
+def ether_type_to_string(ether_type):
+    if ether_type in ether_type_description:
+        return ether_type_description[ether_type]
+    else:
+        return 'unknown(%04X)' % ether_type
+
+
+def mac_to_string(mac):
+    """Returns an Ethernet MAC address in the form
+    XX:XX:XX:XX:XX:XX."""
+
+    return ('%02X:%02X:%02X:%02X:%02X:%02X' %
+            (mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]))
+
 
 def ip_to_string(ip):
     """Returns ip as a string in dotted quad notation."""
-    ip = ntohl(ip)              # network byte order is big-endian
+#    ip = ntohl(ip)              # network byte order is big-endian
     return '%d.%d.%d.%d' % (ip & 0xff,
                             (ip >> 8) & 0xff,
                             (ip >> 16) & 0xff,
                             (ip >> 24) & 0xff)
+
+
+def ip_proto_to_string(proto):
+    proto_name = { 6 : 'TCP' }
+    if proto in proto_name:
+        return proto_name[proto]
+    else:
+        return 'unknown(%d)' % proto
 
 
 def hexdump_escape(c):

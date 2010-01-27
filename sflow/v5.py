@@ -9,7 +9,118 @@ may be useful: 1014, 1832, 4506."""
 from xdrlib import Unpacker
 from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
-from util import ip_to_string, hexdump_bytes
+from util import ip_to_string, hexdump_bytes, mac_to_string, ether_type_to_string, ip_proto_to_string
+
+
+SAMPLE_DATA_FLOW_RECORD = 1
+SAMPLE_DATA_COUNTER_RECORD = 2
+
+FLOW_DATA_RAW_HEADER = 1
+FLOW_DATA_ETHERNET_HEADER = 2
+FLOW_DATA_IPV4_HEADER = 3
+FLOW_DATA_IPV6_HEADER = 4
+FLOW_DATA_EXT_SWITCH = 1001
+FLOW_DATA_EXT_ROUTER = 1002
+FLOW_DATA_EXT_GATEWAY = 1003
+FLOW_DATA_EXT_USER = 1004
+FLOW_DATA_EXT_URL = 1005
+FLOW_DATA_EXT_MPLS = 1006
+FLOW_DATA_EXT_NAT = 1007
+FLOW_DATA_EXT_MPLS_TUNNEL = 1008
+FLOW_DATA_EXT_MPLS_VC = 1009
+FLOW_DATA_EXT_MPLS_FEC = 1010
+FLOW_DATA_EXT_MPLS_LVP_FEC = 1011
+FLOW_DATA_EXT_VLAN_TUNNEL = 1012
+
+# Constants for 'enum header_protocol'.  See p.35 of the sFlow v5
+# spec.
+HEADER_PROTO_ETHERNET_ISO88023 = 1
+HEADER_PROTO_ISO88024_TOKENBUS = 2
+HEADER_PROTO_ISO88025_TOKENRING = 3,
+HEADER_PROTO_FDDI = 4
+HEADER_PROTO_FRAME_RELAY = 5
+HEADER_PROTO_X25 = 6
+HEADER_PROTO_PPP = 7
+HEADER_PROTO_SMDS = 8
+HEADER_PROTO_AAL5 = 9
+HEADER_PROTO_AAL5_IP = 10
+HEADER_PROTO_IPV4 = 11
+HEADER_PROTO_IPV6 = 12
+HEADER_PROTO_MPLS = 13
+HEADER_PROTO_POS = 14
+
+ETHER_TYPE_IEEE8021Q = 0x8100
+
+class EthernetHeader ():
+    """Represents an IEEE 802.3 header including its payload."""
+
+    def __init__(self, src, dst, ether_type, payload, length):
+        self.src_mac = src
+        self.dst_mac = dst
+        self.ether_type = ether_type
+        self.payload = payload
+        self.length = length
+
+    def __repr__(self):
+        return ('<EthernetHeader| src: %s, dst: %s, type: %s, length: %d>' %
+                (mac_to_string(self.src_mac),
+                 mac_to_string(self.dst_mac),
+                 ether_type_to_string(self.ether_type),
+                 self.length))
+
+
+class IEEE8021QHeader ():
+    """Represents an IEEE 802.1Q header including its payload."""
+
+    def __init__(self, vlan_id, src, dst, ether_type, payload, length):
+        self.vlan_id = vlan_id
+        self.src_mac = src
+        self.dst_mac = dst
+        self.ether_type = ether_type
+        self.payload = payload
+        self.length = length
+
+    def __repr__(self):
+        return ('<IEEE8021QHeader| vlan_id: %d, src: %s, dst: %s, type: %s, length: %d>' %
+                (self.vlan_id,
+                 mac_to_string(self.src_mac),
+                 mac_to_string(self.dst_mac),
+                 ether_type_to_string(self.ether_type),
+                 self.length))
+
+
+
+class IPv4Header ():
+    """Represents an IPv4 header including the (possibly incomplete)
+    payload."""
+
+    def __init__(self, header):
+        self.version = (header[0] & 0xf0) >> 4
+        self.ihl = header[0] & 0x0f
+        self.tos = header[1]
+        self.length = header[2] * 256 + header[3]
+        self.ident = header[4] * 256 + header[5]
+        self.flags = header[6] & 0x07
+        self.fragment_offset = ((header[6] & 0xf8) >> 3) * 256 + header[7]
+        self.ttl = header[8]
+        self.protocol = header[9]
+        self.chksum = header[10] * 256 + header[11]
+        self.src = ((header[15] << 24) +
+                    (header[14] << 16) +
+                    (header[13] << 8) +
+                    header[12])
+        self.dst = ((header[19] << 24) +
+                    (header[18] << 16) +
+                    (header[17] << 8) +
+                    header[16])
+
+    def __repr__(self):
+        return ('<IPv4Header| src: %s, dst: %s, proto: %s, version: %d, ihl: %d>' %
+                (ip_to_string(self.src),
+                 ip_to_string(self.dst),
+                 ip_proto_to_string(self.protocol),
+                 self.version,
+                 self.ihl))
 
 
 def decode_sflow_data_source(sflow_data_source):
@@ -110,20 +221,14 @@ def read_sample_record(up, sample_datagram):
     #    opaque sample_data<>;
     #       A structure corresponding to the sample_type
 
-    # Decode sample type
     sample_type = up.unpack_uint()
-    enterprise = sample_type >> 12
-    format = sample_type & 0xfff
-    print('read_sample_record:sample_type == %d (%d, %d)'
-          % (sample_type, enterprise, format))
 
-    # Unpack sample data
     sample_data = up.unpack_opaque()
     up_sample_data = Unpacker(sample_data)
     
-    if sample_type == 1:    # enterprise = 0, format = 1 --> flow_record
+    if sample_type == SAMPLE_DATA_FLOW_RECORD:
         read_flow_sample(up_sample_data, sample_datagram)
-    elif sample_type == 2: # enterprise = 0, format = 2 --> counter_record
+    elif sample_type == SAMPLE_DATA_COUNTER_RECORD:
         read_counter_sample(up_sample_data, sample_datagram)
     else:
         raise Exception()
@@ -194,18 +299,17 @@ def read_flow_record(up, sample_datagram):
     up_flow_data = Unpacker(flow_data)
     
     # Further unpacking depending on format
-    if format == 1:
+    if format == FLOW_DATA_RAW_HEADER:
         read_sampled_header(up_flow_data, sample_datagram)
-    elif format == 2:
+    elif format == FLOW_DATA_ETHERNET_HEADER:
         read_sampled_ethernet(up_flow_data, sample_datagram)  
-    elif format == 3:
+    elif format == FLOW_DATA_IPV4_HEADER:
         read_sampled_ipv4(up_flow_data, sample_datagram)
     else:
         print('read_flow_record:Unknown data_format (%d)' % format)
 
     # Check if everything was unpacked
     up_flow_data.done()
-
 
 
 def read_sampled_header(up, sample_datagram):
@@ -224,9 +328,12 @@ def read_sampled_header(up, sample_datagram):
     stripped = up.unpack_uint()
     header = up.unpack_opaque()
 
-    # Decode header data
-    decode_sampled_header(header)
-    
+    if header_protocol == HEADER_PROTO_ETHERNET_ISO88023:
+        decode_iso88023(header)
+    else:
+        print('Can''t decode header with header protocol %d'
+              % header_protocol)
+
     print("read_sampled_header:header_protocol = %d" % header_protocol)
     print("read_sampled_header:frame_length = %d" % frame_length)
     print("read_sampled_header:stripped = %d" % stripped)
@@ -234,6 +341,50 @@ def read_sampled_header(up, sample_datagram):
     # print("read_sampled_header:header",header)
     print('read_sampled_header:header')
     hexdump_bytes(bytes(header))
+
+
+def decode_iso88023(header):
+    # Full ethernet header included?
+    if len(header) >= 14:
+        dst = header[0:6]
+        src = header[6:12]
+        ether_type = header[12] * 256 + header[13]
+
+        if ether_type == ETHER_TYPE_IEEE8021Q:
+            vlan_id = header[14] * 256 + header[15]
+            ether_type = header[16] * 256 + header[17]
+
+            print(IEEE8021QHeader(vlan_id, dst, src, ether_type, None, len(header)))
+            decode_ipv4(header[18:])
+        else:
+            print(EthernetHeader(dst, src, ether_type, None, len(header)))
+
+        hexdump_bytes(header)
+
+
+def decode_ipv4(header):
+    print(IPv4Header(header))
+
+# def decode_iso88023(header):
+#     # Full ethernet header included?
+#     if len(header) >= 14:
+#         dst = header[0:6]
+#         src = header[6:12]
+#         ether_type = header[12] * 256 + header[13]
+        
+#         print(EthernetHeader(dst, src, ether_type, None, len(header)))
+#         hexdump_bytes(header)
+
+#         if ether_type == ETHER_TYPE_IEEE8021Q:
+#             print(decode_ieee8021q(header[14:]))
+
+
+# def decode_ieee8021q(header):
+#     vlan_id = header[0] * 256 + header[1]
+#     dst = header[2:8]
+#     src = header[8:14]
+#     ether_type = header[14] * 256 + header[15]
+#     print(IEEE8021QHeader(vlan_id, dst, src, ether_type, None, len(header)))
 
 
 def read_sampled_ethernet(up, sample_datagram):
@@ -290,23 +441,6 @@ def read_sampled_ipv4(up, sample_datagram):
     print("read_sampled_ipv4:tcp_flags = %d" % tcp_flags)
     print("read_sampled_ipv4:tos = %d" % tos)
     
-
-
-def decode_sampled_header(header):
-
-    # TODO: Decoder for sampled header data
-    up_header = Unpacker(header)
-#    header_first_byte = up_header.unpack_uint()
-#    header_version = header_first_byte >> 28
-#    header_second_byte = up_header.unpack_uint()
-#    header_third_byte = up_header.unpack_uint()
-#    header_source_ip = up_header.unpack_uint()
-#    header_dst_ip = up_header.unpack_uint()
-
-#    print("read_sampled_header:header_source_ip = %d (%s)" % (header_source_ip, ipToString(header_source_ip)))
-#    print("read_sampled_header:header_dst_ip = %d (%s)" % (header_dst_ip, ipToString(header_dst_ip)))
-
-
 
 def read_counter_sample(up, sample_datagram):
 

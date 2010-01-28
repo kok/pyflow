@@ -86,7 +86,8 @@ def ip_proto_to_string(proto):
 
 
 def speed_to_string(speed):
-    speed_name = { 100000000 : '100Mb',
+    speed_name = { 10000000 : '10Mb',
+                   100000000 : '100Mb',
                    1000000000 : '1Gb',
                    10000000000 : '10Gb' }
 

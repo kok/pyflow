@@ -83,6 +83,27 @@ HEADER_PROTO_POS = 14
 ETHER_TYPE_IEEE8021Q = 0x8100
 
 
+class Datagram (object):
+    """Describes the header data of an sFlow v5 datagram."""
+    def __init__(self, addr, agent_address):
+        self.version = 5
+        self.src_addr = addr[0]
+        self.src_port = addr[1]
+        self.agent_addr = agent_address
+        self.sub_agent_id = 0
+        self.sequence_number = 0
+        self.uptime = 0
+
+    def __repr__(self):
+        return ('<Datagram| src: %s: %d, agent: %s(%d), seq: %d, uptime: %dh>'
+                % (self.src_addr, 
+                   self.src_port, 
+                   ip_to_string(self.agent_addr),
+                   self.sub_agent_id, 
+                   self.sequence_number, 
+                   floor(self.uptime/3600000.0)))
+
+
 class FlowRecord ():
     def __init__(self, flow_sample, data):
         self.flow_sample = flow_sample
@@ -90,6 +111,29 @@ class FlowRecord ():
 
     def __repr__(self):
         return '<FlowRecord>\n  %s\n  %s' % (repr(self.flow_sample), repr(self.data))
+
+
+class FlowSample ():
+
+    def __init__(self, datagram):
+        self.datagram = datagram
+
+    def fromUnpacker(self, up):
+        self.sequence_number = up.unpack_uint()
+        self.source_id = up.unpack_uint()
+        self.sampling_rate = up.unpack_uint()
+        self.sample_pool = up.unpack_uint()
+        self.drops = up.unpack_uint()
+        self.input_if = up.unpack_uint()
+        self.output_if = up.unpack_uint()
+        
+    def __repr__(self):
+        return ('<FlowSample| seq: %d, in_if: %d, out_if: %d, rate: %d>\n    %s' %
+                (self.sequence_number,
+                 self.input_if,
+                 self.output_if,
+                 self.sampling_rate,
+                 repr(self.datagram)))
 
 
 class EthernetHeader ():
@@ -167,6 +211,25 @@ class IPv4Header ():
                  self.ihl))
 
 
+class CounterRecord ():
+    def __init__(self, counter_sample, data):
+        self.counter_sample = counter_sample
+        self.data = data
+
+    def __repr__(self):
+        return ('<CounterRecord>\n  %s\n  %s' %
+                (repr(self.counter_sample),
+                 repr(self.data)))
+
+
+class CounterSample ():
+    def __init__(self, datagram):
+        self.datagram = datagram
+
+    def __repr__(self):
+        return '<CounterSample>\n    %s' % repr(self.datagram)
+
+
 class IfCounters ():
     def __init__(self, up):
         self.index = up.unpack_uint()
@@ -218,16 +281,18 @@ def read_datagram(addr, data):
 
     up = Unpacker(data)
 
-    sf = Datagram(addr)
-
     version = up.unpack_int()
-    assert(version == 5)
+    if not version == 5:
+        hexdump_bytes(data)
+        raise Exception()
 
     af = up.unpack_int()
     if af == 1:                 # IPv4
         agent_address = up.unpack_uint()
     else:
         raise Exception()
+
+    sf = Datagram(addr, agent_address)
 
     sub_agent_id = up.unpack_uint()
     sequence_number = up.unpack_uint()
@@ -270,28 +335,6 @@ def read_sample_record(up, sample_datagram):
     up_sample_data.done()
 
 
-class FlowSample ():
-
-    def __init__(self, datagram):
-        self.datagram = datagram
-
-    def fromUnpacker(self, up):
-        self.sequence_number = up.unpack_uint()
-        self.source_id = up.unpack_uint()
-        self.sampling_rate = up.unpack_uint()
-        self.sample_pool = up.unpack_uint()
-        self.drops = up.unpack_uint()
-        self.input_if = up.unpack_uint()
-        self.output_if = up.unpack_uint()
-        
-    def __repr__(self):
-        return ('<FlowSample| seq: %d, in_if: %d, out_if: %d>\n    %s' %
-                (self.sequence_number,
-                 self.input_if,
-                 self.output_if,
-                 repr(self.datagram)))
-
-
 def read_flow_sample(up, datagram):
     sample = FlowSample(datagram)
     sample.fromUnpacker(up)
@@ -310,15 +353,16 @@ def read_flow_record(up, sample):
     up_flow_data = Unpacker(flow_data)
 
     if flow_format == FLOW_DATA_RAW_HEADER:
-        return FlowRecord(sample, read_sampled_header(up_flow_data))
+        res = FlowRecord(sample, read_sampled_header(up_flow_data))
     elif flow_format == FLOW_DATA_ETHERNET_HEADER:
-        return FlowRecord(sample, read_sampled_ethernet(up_flow_data))
+        res = FlowRecord(sample, read_sampled_ethernet(up_flow_data))
     elif flow_format == FLOW_DATA_IPV4_HEADER:
-        return FlowRecord(sample, read_sampled_ipv4(up_flow_data))
+        res = FlowRecord(sample, read_sampled_ipv4(up_flow_data))
     else:
-        return 'read_flow_record:Unknown data_format (%d)' % flow_format
+        res = 'read_flow_record:Unknown data_format (%d)' % flow_format
 
     up_flow_data.done()
+    return res
 
 
 def read_sampled_header(up):
@@ -346,6 +390,7 @@ def read_sampled_header(up):
 def decode_iso88023(header):
     # Full ethernet header included?
     if len(header) >= 14:
+        
         dst = header[0:6]
         src = header[6:12]
         ether_type = header[12] * 256 + header[13]
@@ -358,17 +403,13 @@ def decode_iso88023(header):
 
             # 18 + 20 = <bytes read so far> + <minimal IP header length>
             if len(header) >= 18 + 20:
-                h.payload = decode_ipv4(header[18:])
+                h.payload = IPv4Header(header[18:])
             return h
         else:
             h = EthernetHeader(src, dst, ether_type, None, len(header))
             if len(header) >= 14 + 20:
-                h.payload = decode_ipv4(header[18:])
+                h.payload = IPv4Header(header[18:])
             return h
-
-
-def decode_ipv4(header):
-    return IPv4Header(header)
 
 
 def read_sampled_ethernet(up, sample_datagram):
@@ -416,7 +457,7 @@ def read_sampled_ipv4(up, sample_datagram):
     return None
 
 
-def read_counter_sample(up, sample_datagram):
+def read_counter_sample(up, datagram):
 
     # Unpack counter_sample structure
     #     unsigned int sequence_number;   Incremented with each counter sample generated by this source_id
@@ -427,13 +468,13 @@ def read_counter_sample(up, sample_datagram):
     source_id = up.unpack_uint()
     nb_counters = up.unpack_uint()
 
-    (source_id_index, source_id_value) = decode_sflow_data_source(source_id)
+    sample = CounterSample(datagram)
 
     for i in range(nb_counters):
-        yield read_counter_record(up, sample_datagram)
+        yield read_counter_record(up, sample)
 
 
-def read_counter_record(up, sample_datagram):
+def read_counter_record(up, sample):
 
     # Unpack counter_record structure
     #     data_format counter_format;     The format of counter_data
@@ -444,23 +485,20 @@ def read_counter_record(up, sample_datagram):
     up_counter_data = Unpacker(counter_data)
     
     if counter_format == COUNTER_DATA_GENERIC:
-        return read_if_counters(up_counter_data, sample_datagram)
+        return CounterRecord(sample, read_if_counters(up_counter_data))
     elif counter_format == COUNTER_DATA_ETHERNET:
-        return read_ethernet_counters(up_flow_data, sample_datagram)  
+        return CounterRecord(sample, read_ethernet_counters(up_flow_data))
     elif counter_format == COUNTER_DATA_TOKENRING:
-        return read_tokenring_counters(up_flow_data, sample_datagram)  
+        return CounterRecord(sample, read_tokenring_counters(up_flow_data))
     elif counter_format == COUNTER_DATA_VG:
-        return read_vg_counters(up_flow_data, sample_datagram)  
+        return CounterRecord(sample, read_vg_counters(up_flow_data))
     elif counter_format == COUNTER_DATA_VLAN:
-        return read_vlan_counters(up_flow_data, sample_datagram)  
+        return CounterRecord(sample, read_vlan_counters(up_flow_data))
     else:
         return 'read_flow_record:Unknown data_format (%d)' % format
 
-    # TODO: This is useless now.  Where can we put this instead?
-    up_counter_data.done()
 
-
-def read_if_counters(up, sample_datagram):
+def read_if_counters(up):
 
     # Unpack Generic Interface Counters
     #     unsigned int ifIndex;
@@ -490,7 +528,7 @@ def read_if_counters(up, sample_datagram):
     return IfCounters(up)
     
 
-def read_ethernet_counters(up, sample_datagram):
+def read_ethernet_counters(up):
 
     # Unpack ethernet_counters structure
     #      unsigned int dot3StatsAlignmentErrors;
@@ -525,7 +563,7 @@ def read_ethernet_counters(up, sample_datagram):
     
 
 
-def read_tokenring_counters(up, sample_datagram):
+def read_tokenring_counters(up):
 
     # Unpack tokenring_counters structure
     #     unsigned int dot5StatsLineErrors;
@@ -569,7 +607,7 @@ def read_tokenring_counters(up, sample_datagram):
     return None
 
 
-def read_vg_counters(up, sample_datagram):
+def read_vg_counters(up):
 
     # Unpack 100 BaseVG interface counters
     #     unsigned int dot12InHighPriorityFrames;
@@ -605,7 +643,7 @@ def read_vg_counters(up, sample_datagram):
     return None
 
 
-def read_vlan_counters(up, sample_datagram):
+def read_vlan_counters(up):
 
     # Unpack VLAN counters
     #     unsigned int vlan_id;
@@ -623,27 +661,6 @@ def read_vlan_counters(up, sample_datagram):
     discards = up.unpack_uint()
 
     return None
-
-
-class Datagram (object):
-    """Describes the header data of an sFlow v5 datagram."""
-    def __init__(self, addr):
-        self.version = 5
-        self.src_addr = addr[0]
-        self.src_port = addr[1]
-        self.sub_agent_id = 0
-        self.sequence_number = 0
-        self.uptime = 0
-        self.samples = []
-
-    def __repr__(self):
-        return ('<Datagram| src: %s: %d, agent: %d, seq: %d, up: %dh, samples: %s>'
-                % (self.src_addr, 
-                   self.src_port, 
-                   self.sub_agent_id, 
-                   self.sequence_number, 
-                   floor(self.uptime/3600000.0), 
-                   str(self.samples)))
 
 
 def listenForSFlow(callback, address='0.0.0.0', port=6343):

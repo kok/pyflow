@@ -139,39 +139,38 @@ class FlowSample ():
 class EthernetHeader ():
     """Represents an IEEE 802.3 header including its payload."""
 
-    def __init__(self, src, dst, ether_type, payload, length):
-        self.src_mac = src
-        self.dst_mac = dst
-        self.ether_type = ether_type
-        self.payload = payload
-        self.length = length
+    def __init__(self, header):
+        self.src = header[0:6]
+        self.dst = header[6:12]
+        self.ether_type = header[12:14]
+        self.payload = None
 
     def __repr__(self):
-        return ('<EthernetHeader| src: %s, dst: %s, type: %s, length: %d>' %
-                (mac_to_string(self.src_mac),
-                 mac_to_string(self.dst_mac),
-                 ether_type_to_string(self.ether_type),
-                 self.length))
+        return ('<EthernetHeader| src: %s, dst: %s, type: %s>' %
+                (mac_to_string(self.src),
+                 mac_to_string(self.dst),
+                 ether_type_to_string(self.ether_type)))
 
 
 class IEEE8021QHeader ():
     """Represents an IEEE 802.1Q header including its payload."""
 
-    def __init__(self, vlan_id, src, dst, ether_type, payload, length):
-        self.vlan_id = vlan_id
-        self.src_mac = src
-        self.dst_mac = dst
-        self.ether_type = ether_type
-        self.payload = payload
-        self.length = length
+    def __init__(self, header):
+        self.dst = header[0:6]
+        self.src = header[6:12]
+        # header[12:14] contains the value 0x8100, indicating that
+        # this is not a regular Ethernet frame, but a IEEE 802.1q
+        # frame.
+        self.vlan_id = header[14] * 256 + header[15]
+        self.ether_type = header[16] * 256 + header[17]
+        self.payload = None
 
     def __repr__(self):
-        repr_ = ('<IEEE8021QHeader| vlan_id: %d, src: %s, dst: %s, type: %s, length: %d>' %
+        repr_ = ('<IEEE8021QHeader| vlan_id: %d, src: %s, dst: %s, type: %s>' %
                  (self.vlan_id,
-                  mac_to_string(self.src_mac),
-                  mac_to_string(self.dst_mac),
-                  ether_type_to_string(self.ether_type),
-                  self.length))
+                  mac_to_string(self.src),
+                  mac_to_string(self.dst),
+                  ether_type_to_string(self.ether_type)))
         if self.payload:
             repr_ += '\n    ' + repr(self.payload)
         return repr_
@@ -203,12 +202,11 @@ class IPv4Header ():
                     header[16])
 
     def __repr__(self):
-        return ('<IPv4Header| src: %s, dst: %s, proto: %s, version: %d, ihl: %d>' %
+        return ('<IPv4Header| src: %s, dst: %s, proto: %s paylen: %d>' %
                 (ip_to_string(self.src),
                  ip_to_string(self.dst),
                  ip_proto_to_string(self.protocol),
-                 self.version,
-                 self.ihl))
+                 self.length - self.ihl * 4))
 
 
 class CounterRecord ():
@@ -390,25 +388,17 @@ def read_sampled_header(up):
 def decode_iso88023(header):
     # Full ethernet header included?
     if len(header) >= 14:
-        
-        dst = header[0:6]
-        src = header[6:12]
-        ether_type = header[12] * 256 + header[13]
-
+        ether_type = header[12] * 256 + header[13]        
         if ether_type == ETHER_TYPE_IEEE8021Q:
-            vlan_id = header[14] * 256 + header[15]
-            ether_type = header[16] * 256 + header[17]
-
-            h = IEEE8021QHeader(vlan_id, src, dst, ether_type, None, len(header))
-
+            h = IEEE8021QHeader(header)
             # 18 + 20 = <bytes read so far> + <minimal IP header length>
             if len(header) >= 18 + 20:
                 h.payload = IPv4Header(header[18:])
             return h
         else:
-            h = EthernetHeader(src, dst, ether_type, None, len(header))
+            h = EthernetHeader(header)
             if len(header) >= 14 + 20:
-                h.payload = IPv4Header(header[18:])
+                h.payload = IPv4Header(header[14:])
             return h
 
 

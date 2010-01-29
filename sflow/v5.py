@@ -200,13 +200,44 @@ class IPv4Header ():
                     (header[18] << 16) +
                     (header[17] << 8) +
                     header[16])
+        if len(header) > 20:
+            if self.protocol == 6:
+                self.payload = TCPHeader(header[20:])
+            elif self.protocol == 17:
+                self.payload = UDPHeader(header[20:])
+        else:
+            self.payload = None
 
     def __repr__(self):
-        return ('<IPv4Header| src: %s, dst: %s, proto: %s paylen: %d>' %
-                (ip_to_string(self.src),
-                 ip_to_string(self.dst),
-                 ip_proto_to_string(self.protocol),
-                 self.length - self.ihl * 4))
+        repr_ = ('<IPv4Header| src: %s, dst: %s, proto: %s paylen: %d>' %
+                 (ip_to_string(self.src),
+                  ip_to_string(self.dst),
+                  ip_proto_to_string(self.protocol),
+                  self.length - self.ihl * 4))
+        if self.payload:
+            repr_ += '\n      %s' % repr(self.payload)
+        return repr_
+
+
+class TCPHeader ():
+
+    def __init__(self, header):
+        self.src_port = header[1] * 256 + header[0]
+        self.dst_port = header[3] * 256 + header[2]
+
+    def __repr__(self):
+        return ('<TCPHeader| src_port: %d, dst_port: %d>' %
+                (self.src_port, self.dst_port))
+
+
+class UDPHeader ():
+    def __init__(self, header):
+        self.src_port = header[1] * 256 + header[0]
+        self.dst_port = header[3] * 256 + header[2]
+
+    def __repr__(self):
+        return ('<UDPHeader| src_port: %d, dst_port: %d>' %
+                (self.src_port, self.dst_port))
 
 
 class CounterRecord ():

@@ -24,7 +24,7 @@ may be useful: 1014, 1832, 4506."""
 from xdrlib import Unpacker
 from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
-from util import ip_to_string, hexdump_bytes, mac_to_string, ether_type_to_string, ip_proto_to_string, speed_to_string
+from pyflow.util import ip_to_string, hexdump_bytes, mac_to_string, ether_type_to_string, ip_proto_to_string, speed_to_string
 
 
 # Constants for the sample_data member of 'struct sample_record'
@@ -222,8 +222,8 @@ class IPv4Header ():
 class TCPHeader ():
 
     def __init__(self, header):
-        self.src_port = header[1] * 256 + header[0]
-        self.dst_port = header[3] * 256 + header[2]
+        self.src_port = header[0] * 256 + header[1]
+        self.dst_port = header[2] * 256 + header[3]
 
     def __repr__(self):
         return ('<TCPHeader| src_port: %d, dst_port: %d>' %
@@ -232,8 +232,8 @@ class TCPHeader ():
 
 class UDPHeader ():
     def __init__(self, header):
-        self.src_port = header[1] * 256 + header[0]
-        self.dst_port = header[3] * 256 + header[2]
+        self.src_port = header[0] * 256 + header[1]
+        self.dst_port = header[2] * 256 + header[3]
 
     def __repr__(self):
         return ('<UDPHeader| src_port: %d, dst_port: %d>' %

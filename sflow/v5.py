@@ -317,7 +317,7 @@ def read_datagram(addr, data):
 
     af = up.unpack_int()
     if af == 1:                 # IPv4
-        agent_address = up.unpack_uint()
+        agent_address = ntohl(up.unpack_uint())
     else:
         raise Exception()
 

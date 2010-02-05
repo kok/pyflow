@@ -21,6 +21,7 @@ may be useful: 1014, 1832, 4506."""
 # http://en.wikipedia.org/wiki/Ethernet
 
 
+from sys import stdout
 from xdrlib import Unpacker
 from socket import socket, AF_INET, SOCK_DGRAM, ntohl
 from math import floor
@@ -703,3 +704,4 @@ if __name__ == '__main__':
         data, addr = sock.recvfrom(65535)
         for rec in read_datagram(addr, data):
             print(rec)
+            stdout.flush()
